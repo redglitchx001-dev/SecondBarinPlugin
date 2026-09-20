@@ -1,0 +1,30 @@
+name: SecondBrain
+version: '${project.version}'
+main: me.sailex.secondbrain.SecondBrainPlugin
+api-version: '1.21'
+authors: [sailex428, XNetwork-Port]
+description: AI-powered NPCs for Paper 1.21.x. Custom built, ZERO dependencies.
+
+commands:
+  secondbrain:
+    description: Manage SecondBrain AI NPCs
+    aliases: [sb, brain, ai]
+    usage: /sb help
+
+permissions:
+  secondbrain.use:
+    description: Talk to NPCs, open the GUI, view info/stats
+    default: op
+  secondbrain.admin:
+    description: Create/edit/remove NPCs, change settings, reload
+    default: op
+  secondbrain.bypass.cooldown:
+    description: Bypass the per-player chat cooldown
+    default: op
+  secondbrain.*:
+    description: Everything SecondBrain
+    default: op
+    children:
+      secondbrain.use: true
+      secondbrain.admin: true
+      secondbrain.bypass.cooldown: true

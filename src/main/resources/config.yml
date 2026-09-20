@@ -1,0 +1,122 @@
+# ============================================================
+#   SecondBrain v5.0 - ZERO DEPENDENCIES
+#   Custom AI NPC Engine for Paper 1.21.x
+#
+#   Every setting below can also be changed in-game:
+#     /sb gui          -> full menu with toggles
+#     /sb toggle ...   -> quick global toggles
+#     /sb set ...      -> per-NPC settings
+# ============================================================
+
+llm:
+  url: "https://ai.xnetwork.ro/v1"     # Any OpenAI-compatible endpoint
+  model: "gpt-oss-20b"
+  api-key: "PUT_YOUR_API_KEY_HERE"
+  timeout: 30            # Seconds to wait for a reply
+  max-history: 20        # Messages remembered per player<->NPC conversation
+  max-tokens: 250        # Max length of a reply
+  temperature: 0.8       # Creativity (0.0 - 2.0)
+
+npc:
+  default-prompt: "You are {name}, a friendly AI living inside Minecraft. Keep replies short (1-2 sentences). You are helpful, casual and stay in character."
+  chat-radius: 15.0            # Blocks around an NPC that hear chat
+  respond-only-to-name: true   # true = only answer when the message contains the NPC's name
+  chat-enabled: true           # Master switch for NPC chat AI
+  look-at-players: true        # NPCs turn their head toward nearby players
+  show-name: true              # Show the name tag above the NPC's head
+  glow: false                  # Make NPCs glow (great for finding them)
+  default-entity-type: VILLAGER  # VILLAGER, ZOMBIE, SKELETON, WITCH, PILLAGER, ARMOR_STAND
+  default-profession: NONE     # Villagers only: NONE, FARMER, LIBRARIAN, CLERIC, ARMORER, WEAPONSMITH, TOOLSMITH, BUTCHER, LEATHERWORKER, MASON, SHEPHERD, FISHERMAN, FLETCHER, CARTOGRAPHER... (any Villager.Profession)
+  baby: false                  # Spawn baby villagers by default
+  broadcast-multiplier: 3.0    # Replies are heard within chat-radius * this
+  max-npcs-per-message: 2      # Max NPCs answering a single chat message
+
+chat:
+  format: "&8<&e{npc}&8> &f{msg}"
+  cooldown: 2.0            # Seconds a player must wait between AI messages
+  typing-indicator: true   # Action-bar "NPC is thinking..." while waiting
+  focus-duration: 60       # Seconds a right-click / /sb focus lasts
+
+debug: false               # Verbose logging of AI requests/errors
+
+# ------------------------------------------------------------
+#  Every player-facing message. Supports & color codes.
+# ------------------------------------------------------------
+messages:
+  prefix: "&8[&bSecondBrain&8] &r"
+
+  created: "&aNPC &e{name}&a created at your location!"
+  already-exists: "&cAn NPC named &e{name}&c already exists."
+  removed: "&cNPC &e{name}&c removed."
+  not-found: "&cNo NPC named: &e{name}"
+  renamed: "&aNPC &e{old}&a renamed to &e{new}&a."
+  moved: "&aNPC &e{name}&a moved to your location."
+  teleported: "&aTeleported to &e{name}&a."
+  world-missing: "&cThat NPC's world is not loaded."
+
+  no-perm: "&cYou don't have permission for that."
+  players-only: "&cOnly players can use this command."
+  usage: "&cUsage: &e{usage}"
+  invalid-number: "&c'&e{value}&c' is not a valid number."
+  invalid-bool: "&cUse &eon&c/&coff&c or &etrue&c/&cfalse&c."
+
+  key-saved: "&aAPI key saved!"
+  url-saved: "&aAPI URL set to: &e{url}"
+  model-saved: "&aModel set to: &e{model}"
+  reloaded: "&aConfiguration reloaded!"
+  saved: "&aAll NPCs and memories saved to disk."
+
+  prompt-set: "&aPrompt of &e{name}&a updated!"
+  prompt-header: "&bSystem prompt of &e{name}&b:"
+  radius-set: "&aChat radius of &e{name}&a set to &e{radius}&a blocks."
+
+  memory-cleared: "&aMemory of &e{name}&a cleared!"
+  memory-cleared-all: "&aAll NPC memories cleared!"
+
+  no-key: "&c[SecondBrain] API key not set! Use: &e/sb setkey <key>"
+
+  list-header: "&8&m---------&r &bSecondBrain NPCs &7({page}/{pages}) &8&m---------"
+  list-entry: "&7▸ &e{name} &8| &7world: &f{world} &8| &7status: {status}"
+  list-entry-hover: "&7Click to open this NPC's editor"
+  list-empty: "&7No NPCs yet. Create one with &e/sb create <name>&7."
+
+  near-header: "&bNPCs within &e{radius}&b blocks:"
+  near-entry: "&7▸ &e{name} &8- &f{dist}m &7{direction}"
+  near-none: "&7No NPCs within &e{radius}&7 blocks."
+
+  toggle-set: "&aSetting &e{setting}&a is now: {value}"
+  toggle-invalid: "&cUnknown setting '&e{setting}&c'. Options: &e{options}"
+  npc-set: "&aNPC &e{name}&a: &e{setting}&a is now: {value}"
+  type-set: "&aNPC &e{name}&a is now a &e{type}&a."
+  type-invalid: "&cUnknown entity type '&e{type}&c'. Options: &e{types}"
+  profession-set: "&aNPC &e{name}&a profession set to &e{profession}&a."
+  profession-invalid: "&cUnknown profession '&e{profession}&c'."
+
+  focus-set: "&aNow focused on &e{name}&a for &e{seconds}s&a. Your chat goes straight to them."
+  focus-cleared: "&7Focus cleared."
+  focus-none: "&7You are not focused on any NPC."
+
+  cooldown: "&cSlow down! Try again in &e{seconds}s&c."
+  thinking: "&e{npc}&7 is thinking&8..."
+  busy: "&7{name} is already thinking about something..."
+
+  test-header: "&8[&btest &7-> &e{npc}&8]&r"
+  test-error: "&cTest failed: &e{error}"
+
+  stats-header: "&8&m---------&r &bSecondBrain Stats &8&m---------"
+  stats-npcs: "&7NPCs alive: &f{value}"
+  stats-memories: "&7Conversations stored: &f{value}"
+  stats-messages: "&7AI replies served: &f{value}"
+  stats-errors: "&7AI errors: &c{value}"
+  stats-latency: "&7Avg reply time: &f{value}"
+  stats-uptime: "&7Session uptime: &f{value}"
+
+  status-header: "&8&m---------&r &bSecondBrain Status &8&m---------"
+  status-url: "&7Endpoint: &f{value}"
+  status-model: "&7Model: &f{value}"
+  status-key: "&7API key: &f{value}"
+  status-timeout: "&7Timeout: &f{value}s"
+  status-limits: "&7History: &f{history} &7msgs, max &f{tokens} &7tokens, temp &f{temp}"
+  status-npcs: "&7NPCs: &f{value}"
+
+  help-header: "&8&m---------&r &bSecondBrain Help &7({page}/{pages}) &8&m---------"
