@@ -167,6 +167,16 @@ automatically with the jar attached as a build artifact (see the **Actions** tab
 
 ---
 
+## 🧭 Project rules (read before contributing)
+
+The plugin's original brief — the "**ZERO DEPENDENCIES**" contract — lives in [`PROMPT.md`](PROMPT.md)
+(Romanian original + English translation, recovered from the v4 source zip and now versioned).
+[`AGENTS.md`](AGENTS.md) summarises it as hard rules for AI assistants and contributors:
+no Citizens / ProtocolLib / NMS, native Paper entities only, native `HttpClient` for AI calls,
+Java 21 + Paper 1.21.x, toggles always working. `PROMPT.md` also tracks the current compliance status.
+
+---
+
 ## 📜 License
 
 Based on SecondBrain by **sailex428**, licensed under **LGPL-3.0**. See `LICENSE.md`.
