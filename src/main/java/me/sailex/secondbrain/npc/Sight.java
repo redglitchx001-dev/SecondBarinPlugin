@@ -107,12 +107,14 @@ public final class Sight {
     }
 
     private static boolean hasLineOfSight(LivingEntity from, Location to) {
-        RayTraceResult r = from.getWorld().rayTraceBlocks(from.getEyeLocation(),
-                to.toVector().subtract(from.getEyeLocation().toVector()).normalize(),
-                from.getEyeLocation().distance(to),
-                FluidCollisionMode.NEVER, true);
-        return r == null || r.getHitBlock() == null
-                || r.getHitPosition().distance(from.getEyeLocation().toVector()) >= from.getEyeLocation().distance(to) - 0.5;
+        // LivingEntity#hasLineOfSight(Entity) exists but we want to test line of sight to a Location,
+        // so we approximate by checking the block at the target against air-passthrough.
+        org.bukkit.util.Vector dir = to.toVector().subtract(from.getEyeLocation().toVector());
+        double dist = dir.length();
+        if (dist < 0.01) return true;
+        RayTraceResult r = from.getWorld().rayTraceBlocks(from.getEyeLocation(), dir.normalize(), dist,
+                FluidCollisionMode.NEVER, false); // ignore passable blocks like grass/tallgrass
+        return r == null || r.getHitBlock() == null;
     }
 
     private static String friendly(Material m) {
