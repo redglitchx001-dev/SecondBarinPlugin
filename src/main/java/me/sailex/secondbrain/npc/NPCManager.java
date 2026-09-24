@@ -311,12 +311,12 @@ public class NPCManager {
         if (eq == null) return;
         eq.setItemInMainHandDropChance(0f);
         if (data.getMainHand() == null || data.getMainHand().isBlank()) {
-            eq.setItemInMainHand(null, true);
+            eq.setItemInMainHand(null);
             return;
         }
         Material m = Material.matchMaterial(data.getMainHand().toUpperCase(Locale.ROOT));
-        if (m == null) { eq.setItemInMainHand(null, true); return; }
-        eq.setItemInMainHand(new ItemStack(m), true);
+        if (m == null) { eq.setItemInMainHand(null); return; }
+        eq.setItemInMainHand(new ItemStack(m));
     }
 
     /** Equips the NPC's helmet slot with the skin-skull if configured. */
@@ -330,7 +330,7 @@ public class NPCManager {
 
         if (!data.hasSkin()) {
             // Clear helmet only if we previously set one (i.e. empty slot check is skipped; we always clean up).
-            eq.setHelmet(null, true);
+            eq.setHelmet(null);
             eq.setHelmetDropChance(0f);
             return;
         }
@@ -345,7 +345,7 @@ public class NPCManager {
             // Placeholder will be applied until async fetch completes; the callback above re-applies.
             return;
         }
-        eq.setHelmet(skull, true);
+        eq.setHelmet(skull);
         eq.setHelmetDropChance(0f);
     }
 
