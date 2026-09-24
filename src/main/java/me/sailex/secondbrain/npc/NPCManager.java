@@ -236,9 +236,11 @@ public class NPCManager {
 
         Entity e = loc.getWorld().spawnEntity(loc, data.getEntityType());
         if (e instanceof LivingEntity le) {
-            le.setAI(false);
             le.setSilent(true);
-            le.setCollidable(false);
+            if (le instanceof Mob m) {
+                m.setAI(false);
+                m.setCollidable(false);
+            }
         }
         e.setInvulnerable(true);
         e.setPersistent(true);
