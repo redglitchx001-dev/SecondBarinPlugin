@@ -29,6 +29,11 @@ public class NPCData {
     private EntityType entityType;    // VILLAGER by default
     private Villager.Profession profession; // villagers only
     private Boolean baby;
+    private String skinName;          // Minecraft player name whose skin is applied as a helmet, null = no skin
+    private Boolean canExecuteCommands;// true = this NPC can run commands (only when talker is OP)
+    private Boolean consoleExecutor;   // true = trusted OP-NPC: commands dispatch as console (bypasses protections)
+    private Boolean hostile;           // true = attacks nearby players in combat range
+    private String mainHand;           // Bukkit Material name for held item, null = nothing (e.g. DIAMOND_SWORD, MACE)
 
     // ---- runtime counters ----
     private final AtomicLong repliesServed = new AtomicLong();
@@ -71,6 +76,27 @@ public class NPCData {
     public void setProfession(Villager.Profession profession) { this.profession = profession; }
     public Boolean getBabyRaw() { return baby; }
     public void setBaby(Boolean baby) { this.baby = baby; }
+
+    public String getSkinName() { return skinName; }
+    public void setSkinName(String skinName) {
+        this.skinName = (skinName == null || skinName.isBlank()) ? null : skinName;
+    }
+    public boolean hasSkin() { return skinName != null && !skinName.isBlank(); }
+
+    public Boolean getCanExecuteCommandsRaw() { return canExecuteCommands; }
+    public void setCanExecuteCommands(Boolean v) { this.canExecuteCommands = v; }
+    public boolean canExecuteCommands() { return Boolean.TRUE.equals(canExecuteCommands); }
+
+    public Boolean getConsoleExecutorRaw() { return consoleExecutor; }
+    public void setConsoleExecutor(Boolean v) { this.consoleExecutor = v; }
+    public boolean isConsoleExecutor() { return Boolean.TRUE.equals(consoleExecutor); }
+
+    public Boolean getHostileRaw() { return hostile; }
+    public void setHostile(Boolean v) { this.hostile = v; }
+    public boolean isHostile() { return Boolean.TRUE.equals(hostile); }
+
+    public String getMainHand() { return mainHand; }
+    public void setMainHand(String mainHand) { this.mainHand = mainHand; }
 
     // ---- runtime ----
     public long incrementReplies() { return repliesServed.incrementAndGet(); }

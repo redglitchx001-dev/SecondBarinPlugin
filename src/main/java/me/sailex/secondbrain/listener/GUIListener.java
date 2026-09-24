@@ -3,11 +3,15 @@ package me.sailex.secondbrain.listener;
 import me.sailex.secondbrain.SecondBrainPlugin;
 import me.sailex.secondbrain.gui.ConfirmAction;
 import me.sailex.secondbrain.gui.GUIManager;
+import me.sailex.secondbrain.gui.NPCInventoryHolder;
 import me.sailex.secondbrain.npc.NPCData;
 import me.sailex.secondbrain.npc.NPCManager;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Villager;
@@ -17,7 +21,9 @@ import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.BookMeta;
 
+import java.util.List;
 import java.util.Locale;
 
 /** Routes every click inside SecondBrain GUIs. */
@@ -117,8 +123,16 @@ public class GUIListener implements Listener {
             default -> {}
         }
 
-        NPCData npc = nm.findByName(item);
+        // Prefer PDC-stamped npc id (works even with color-coded names); fall back to display name.
+        NPCData npc = null;
+        if (e.getCurrentItem() != null && e.getCurrentItem().hasItemMeta()) {
+            String id = e.getCurrentItem().getItemMeta().getPersistentDataContainer()
+                    .get(NPCInventoryHolder.key(), org.bukkit.persistence.PersistentDataType.STRING);
+            if (id != null) npc = nm.findById(id);
+        }
+        if (npc == null) npc = nm.findByName(item);
         if (npc == null) return;
+        // item variable unused in later logic; keep for clarity.
 
         if (click == ClickType.DROP || click == ClickType.CONTROL_DROP) {
             if (!admin(p)) return;
@@ -187,52 +201,121 @@ public class GUIListener implements Listener {
                 npc.setLookAtPlayers(right ? null : !nm.isLookAtPlayers(npc));
                 finishToggle(p, npc);
             }
-            case 19 -> { // name tag
+            case 14 -> { // run commands
+                npc.setCanExecuteCommands(right ? null : !npc.canExecuteCommands());
+                finishToggle(p, npc);
+            }
+            case 15 -> { // name tag
                 npc.setShowName(right ? null : !nm.isShowName(npc));
                 finishToggle(p, npc);
             }
-            case 20 -> { // glow
+            case 16 -> { // glow
                 npc.setGlow(right ? null : !nm.isGlow(npc));
                 finishToggle(p, npc);
             }
-            case 21 -> { // baby
+            case 19 -> { // baby
                 npc.setBaby(right ? null : !Boolean.TRUE.equals(npc.getBabyRaw()));
                 nm.saveAll();
-                nm.spawnEntity(npc); // baby/adult needs a respawn
-                plugin.getGuiManager().openEditor(p, npc);
+                nm.spawnEntity(npc);
+                gm.openEditor(p, npc);
             }
-            case 15 -> adjustRadius(p, npc, +1);
-            case 16 -> adjustRadius(p, npc, +5);
-            case 23 -> adjustRadius(p, npc, -1);
-            case 24 -> adjustRadius(p, npc, -5);
-            case 29 -> gm.beginInput(p, GUIManager.InputType.SET_PROMPT, npc);
-            case 31 -> gm.openEntityPicker(p, npc);
-            case 33 -> {
+            case 20 -> { // hostile PvP
+                npc.setHostile(right ? null : !npc.isHostile());
+                nm.saveAll();
+                nm.applyEquipment(npc);
+                nm.spawnEntity(npc);
+                gm.openEditor(p, npc);
+            }
+            case 21 -> { // held item: cycle presets / clear
+                if (right) {
+                    npc.setMainHand(null);
+                } else {
+                    Material[] presets = me.sailex.secondbrain.gui.GUIManager.WEAPON_PRESETS;
+                    Material current = npc.getMainHand() == null ? null : Material.matchMaterial(npc.getMainHand());
+                    int idx = 0;
+                    for (int i = 0; i < presets.length; i++) {
+                        if ((current == null && presets[i] == null)
+                                || (current != null && current == presets[i])) { idx = (i + 1) % presets.length; break; }
+                    }
+                    Material next = presets[idx];
+                    npc.setMainHand(next == null ? null : next.name());
+                }
+                nm.saveAll();
+                nm.applyEquipment(npc);
+                if (npc.isHostile()) nm.spawnEntity(npc);
+                gm.openEditor(p, npc);
+            }
+            case 23 -> adjustRadius(p, npc, +1);
+            case 24 -> adjustRadius(p, npc, +5);
+            case 25 -> adjustRadius(p, npc, -1);
+            case 34 -> adjustRadius(p, npc, -5);
+            case 28 -> gm.beginInput(p, GUIManager.InputType.SET_PROMPT, npc);
+            case 29 -> gm.openEntityPicker(p, npc);
+            case 30 -> {
                 if (npc.getEntityType() == EntityType.VILLAGER) gm.openProfessionPicker(p, npc);
                 else p.sendMessage(cm.msgRaw("prefix") + "\u00a77Only villagers have professions.");
             }
-            case 38 -> gm.beginInput(p, GUIManager.InputType.RENAME_NPC, npc);
-            case 40 -> {
+            case 32 -> {
+                gm.beginInput(p, GUIManager.InputType.RENAME_NPC, npc);
+                return;
+            }
+            case 33 -> {
+                if (right) { gm.applySkin(p, npc, ""); return; }
+                gm.beginInput(p, GUIManager.InputType.SET_SKIN, npc);
+                return;
+            }
+            case 37 -> {
                 Location loc = npc.getLocation();
                 if (loc == null || loc.getWorld() == null) { p.sendMessage(cm.msg("world-missing")); return; }
                 p.closeInventory();
                 p.teleport(loc);
                 p.sendMessage(cm.msg("teleported", "name", npc.getName()));
             }
-            case 42 -> {
+            case 38 -> { // op / deop trusted NPC
+                if (!p.isOp()) { p.sendMessage(cm.msgRaw("prefix") + "\u00a7cOnly server operators can toggle this."); return; }
+                if (npc.isConsoleExecutor()) {
+                    npc.setConsoleExecutor(false);
+                    npc.setCanExecuteCommands(false);
+                    p.sendMessage(cm.msgRaw("prefix") + "\u00a7a" + npc.getName() + " demoted (no longer console).");
+                } else {
+                    npc.setConsoleExecutor(true);
+                    npc.setCanExecuteCommands(true);
+                    p.sendMessage(cm.msgRaw("prefix") + "\u00a7c\u00a7l" + npc.getName() + " promoted to CONSOLE executor. Be careful!");
+                }
+                nm.saveAll();
+                gm.openEditor(p, npc);
+            }
+            case 39 -> {
                 nm.move(npc.getName(), p.getLocation());
                 p.sendMessage(cm.msg("moved", "name", npc.getName()));
                 gm.openEditor(p, npc);
             }
-            case 45 -> gm.openNPCList(p);
-            case 49 -> gm.confirm(p, "Clear memory of " + npc.getName() + "?",
+            case 40 -> { // "what more" info book
+                showMoreBook(p);
+                return;
+            }
+            case 41 -> gm.confirm(p, "Clear memory of " + npc.getName() + "?",
                     () -> {
                         plugin.getChatService().clearMemory(npc.getId());
                         p.sendMessage(cm.msg("memory-cleared", "name", npc.getName()));
                         gm.openEditor(p, npc);
                     },
                     () -> gm.openEditor(p, npc));
-            case 53 -> gm.confirm(p, "Delete NPC " + npc.getName() + "?",
+            case 42 -> { // clone
+                String base = me.sailex.secondbrain.util.Text.stripColors(npc.getName());
+                String copy = base;
+                int i = 2;
+                while (nm.findByName(copy) != null) copy = base + " (" + i++ + ")";
+                NPCData clone = nm.cloneNPCData(npc, copy, p.getLocation());
+                if (clone == null) {
+                    p.sendMessage(cm.msg("already-exists", "name", copy));
+                    return;
+                }
+                p.sendMessage(cm.msgRaw("prefix") + "\u00a7aCloned \u00a7e" + base + " \u00a7a\u2192 \u00a7e" + copy);
+                gm.openEditor(p, clone);
+                return;
+            }
+            case 43 -> gm.confirm(p, "Delete NPC " + npc.getName() + "?",
                     () -> {
                         if (nm.removeByName(npc.getName())) {
                             plugin.getChatService().clearMemory(npc.getId());
@@ -241,6 +324,7 @@ public class GUIListener implements Listener {
                         gm.openNPCList(p);
                     },
                     () -> gm.openEditor(p, npc));
+            case 45 -> gm.openNPCList(p);
             default -> {}
         }
     }
@@ -411,5 +495,37 @@ public class GUIListener implements Listener {
     private String itemName(ItemStack i) {
         if (i == null || !i.hasItemMeta() || i.getItemMeta() == null || i.getItemMeta().displayName() == null) return "";
         return PlainTextComponentSerializer.plainText().serialize(i.getItemMeta().displayName()).trim();
+    }
+
+    private void showMoreBook(Player p) {
+        ItemStack book = new ItemStack(Material.WRITTEN_BOOK);
+        BookMeta meta = (BookMeta) book.getItemMeta();
+        if (meta != null) {
+            meta.setTitle("SecondBrain Roadmap");
+            meta.setAuthor("SecondBrain");
+            String raw =
+                    "\u00a7l\u00a7dWhat more can we add?\u00a7r\n\n"
+                  + "\u00a7b\u2708 Ranged: bows/crossbows/tridents\n"
+                  + "\u00a7c\u2694 Shield blocking + sweeps\n"
+                  + "\u00a7e\u00a7lArmor \u00a7r+ offhand\n"
+                  + "\u00a75\u2708 Elytra / crystal cPvP\n"
+                  + "\u00a76\u00a7lFollow / guard \u00a7rwaypoints\n"
+                  + "\u00a7a\u00a7lFactions / claim guards\n"
+                  + "\u00a72\u00a7lVillager-style trades\n"
+                  + "\u00a7c\u00a7lQuest dialogs\n"
+                  + "\u00a7d\u00a7lSit/wave/dance emotes\n"
+                  + "\u00a7e\u00a7lVoice (TTS)\n"
+                  + "\u00a79\u00a7lDaily schedules\n"
+                  + "\u00a73\u00a7lVector/embedding memory\n"
+                  + "\u00a7c\u2b50 Boss bars + fight cues\n"
+                  + "\u00a7e\u00a7lSkill trees / levels\n"
+                  + "\u00a7b\u00a7lNPC party chat\n\n"
+                  + "\u00a7oJust say which to build next!";
+            Component page = LegacyComponentSerializer.legacySection().deserialize(raw);
+            meta.addPages(page);
+            book.setItemMeta(meta);
+        }
+        p.closeInventory();
+        p.openBook(book);
     }
 }

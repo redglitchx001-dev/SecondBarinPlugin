@@ -4,6 +4,7 @@ import me.sailex.secondbrain.SecondBrainPlugin;
 import me.sailex.secondbrain.config.ConfigManager;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -12,8 +13,11 @@ import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.LivingEntity;
+import org.bukkit.entity.Mob;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Villager;
+import org.bukkit.inventory.EntityEquipment;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.Vector;
 
 import java.io.File;
@@ -60,25 +64,71 @@ public class NPCManager {
 
     /** @return null on success, otherwise the error message key. */
     public String createNPC(String name, Location loc) {
-        if (npcs.containsKey(name.toLowerCase(Locale.ROOT))) return "already-exists";
+        if (npcs.containsKey(plainKey(name))) return "already-exists";
+        if (!me.sailex.secondbrain.util.Text.validNpcName(name)) return "invalid-name";
 
         String id = UUID.randomUUID().toString().substring(0, 8);
         ConfigManager cm = plugin.getConfigManager();
-        String prompt = cm.getDefaultPrompt().replace("{name}", name);
+        String plainName = me.sailex.secondbrain.util.Text.stripColors(name);
+        String prompt = cm.getDefaultPrompt().replace("{name}", plainName);
 
         NPCData data = new NPCData(id, name, loc.clone(), prompt);
         data.setEntityType(matchType(cm.getDefaultEntityType()));
         data.setProfession(ConfigManager.parseProfession(cm.getDefaultProfession()));
         if (cm.isBaby()) data.setBaby(true);
 
-        npcs.put(name.toLowerCase(Locale.ROOT), data);
+        npcs.put(plainKey(name), data);
         spawnEntity(data);
         saveAll();
         return null;
     }
 
+    /** Duplicates an NPC at a new location with a new name (copies settings + skin + prompt). */
+    public String cloneNPC(NPCData source, String newName, Location loc) {
+        if (npcs.containsKey(plainKey(newName))) return "already-exists";
+        if (!me.sailex.secondbrain.util.Text.validNpcName(newName)) return "invalid-name";
+
+        String id = UUID.randomUUID().toString().substring(0, 8);
+        String plainNew = me.sailex.secondbrain.util.Text.stripColors(newName);
+        String prompt = source.getSystemPrompt()
+                .replace(me.sailex.secondbrain.util.Text.stripColors(source.getName()), plainNew);
+        NPCData copy = new NPCData(id, newName, loc.clone(), prompt);
+        copy.setEntityType(source.getEntityType());
+        copy.setProfession(source.getProfession());
+        copy.setChatEnabled(source.getChatEnabledRaw());
+        copy.setNameOnly(source.getNameOnlyRaw());
+        copy.setLookAtPlayers(source.getLookAtPlayersRaw());
+        copy.setShowName(source.getShowNameRaw());
+        copy.setGlow(source.getGlowRaw());
+        copy.setBaby(source.getBabyRaw());
+        copy.setChatRadius(source.getChatRadiusRaw());
+        copy.setSkinName(source.getSkinName());
+        copy.setCanExecuteCommands(source.getCanExecuteCommandsRaw());
+        copy.setConsoleExecutor(source.getConsoleExecutorRaw());
+        copy.setHostile(source.getHostileRaw());
+        copy.setMainHand(source.getMainHand());
+
+        npcs.put(plainKey(newName), copy);
+        spawnEntity(copy);
+        applyEquipment(copy);
+        applySkin(copy);
+        saveAll();
+        return null;
+    }
+
+    /** Returns the clone NPCData on success, or null on failure (sets an "already-exists" message sent by caller). */
+    public NPCData cloneNPCData(NPCData source, String newName, Location loc) {
+        String err = cloneNPC(source, newName, loc);
+        if (err != null) return null;
+        return findByName(newName);
+    }
+
+    private static String plainKey(String name) {
+        return me.sailex.secondbrain.util.Text.stripColors(name).toLowerCase(Locale.ROOT);
+    }
+
     public boolean removeByName(String name) {
-        NPCData data = npcs.remove(name.toLowerCase(Locale.ROOT));
+        NPCData data = npcs.remove(plainKey(name));
         if (data == null) return false;
 
         if (data.getEntityUuid() != null) {
@@ -99,14 +149,19 @@ public class NPCManager {
     }
 
     public boolean rename(String oldName, String newName) {
-        NPCData data = npcs.remove(oldName.toLowerCase(Locale.ROOT));
+        String oldKey = plainKey(oldName);
+        NPCData data = npcs.remove(oldKey);
         if (data == null) return false;
-        if (npcs.containsKey(newName.toLowerCase(Locale.ROOT))) {
-            npcs.put(oldName.toLowerCase(Locale.ROOT), data); // restore
+        if (!me.sailex.secondbrain.util.Text.validNpcName(newName)) {
+            npcs.put(oldKey, data);
+            return false;
+        }
+        if (npcs.containsKey(plainKey(newName))) {
+            npcs.put(oldKey, data); // restore
             return false;
         }
         data.setName(newName);
-        npcs.put(newName.toLowerCase(Locale.ROOT), data);
+        npcs.put(plainKey(newName), data);
         applyVisuals(data);
         saveAll();
         return true;
@@ -125,7 +180,7 @@ public class NPCManager {
     }
 
     public NPCData findByName(String name) {
-        return name == null ? null : npcs.get(name.toLowerCase(Locale.ROOT));
+        return name == null ? null : npcs.get(plainKey(name));
     }
 
     public NPCData findById(String id) {
@@ -163,6 +218,8 @@ public class NPCManager {
     public boolean isShowName(NPCData d)      { return d.getShowNameRaw()      != null ? d.getShowNameRaw()      : plugin.getConfigManager().isShowName(); }
     public boolean isGlow(NPCData d)          { return d.getGlowRaw()          != null ? d.getGlowRaw()          : plugin.getConfigManager().isGlow(); }
     public double  getChatRadius(NPCData d)   { return d.getChatRadiusRaw()    != null ? d.getChatRadiusRaw()    : plugin.getConfigManager().getChatRadius(); }
+    public boolean canExecuteCommands(NPCData d) { return d.canExecuteCommands(); }
+    public boolean isHostile(NPCData d)         { return d.isHostile(); }
 
     // ============================================================
     //  Entity spawning / visuals
@@ -185,19 +242,45 @@ public class NPCManager {
         }
         e.setInvulnerable(true);
         e.setPersistent(true);
-        e.setCustomName("\u00a7e\u00a7l" + data.getName());
         e.addScoreboardTag(ENTITY_TAG);
+        // Name is set by applyVisuals() below (handles & color codes).
 
         if (e instanceof Villager v && data.getProfession() != null) {
             v.setProfession(data.getProfession());
+        }
+        if (e instanceof ArmorStand as) {
+            as.setGravity(true);
+            as.setVisible(true);
+            as.setArms(true);           // so skin head + hand items look right
+            as.setBasePlate(true);
+            as.setMarker(false);
+            as.setSmall(Boolean.TRUE.equals(data.getBabyRaw()));
         }
         Boolean baby = data.getBabyRaw();
         if (baby != null && e instanceof Ageable a) {
             if (baby) a.setBaby(); else a.setAdult();
         }
 
+        // Disable default equipment drops / pickup for living entities so our skin helmet stays.
+        if (e instanceof Mob m) {
+            m.setCanPickupItems(false);
+        }
+
         data.setEntityUuid(e.getUniqueId());
         applyVisuals(data);
+        applyEquipment(data);
+        applySkin(data);
+        // Hostile NPCs get their AI + pathfinding configured in NPCCombat.
+        plugin.getNpcCombat().configure(data, e);
+    }
+
+    /** Re-render every NPC (used after /sb reload when global defaults change). */
+    public void refreshAllVisuals() {
+        for (NPCData d : npcs.values()) {
+            applyVisuals(d);
+            applyEquipment(d);
+            applySkin(d);
+        }
     }
 
     /** Applies name visibility + glow without respawning. */
@@ -205,17 +288,63 @@ public class NPCManager {
         if (data.getEntityUuid() == null) return;
         Entity e = Bukkit.getEntity(data.getEntityUuid());
         if (e == null) return;
-        e.setCustomName("\u00a7e\u00a7l" + data.getName());
+        String colored;
+        if (data.getName().contains("&") || data.getName().contains("\u00a7")) {
+            colored = me.sailex.secondbrain.util.Text.color(data.getName());
+        } else {
+            colored = "\u00a7e\u00a7l" + data.getName();
+        }
+        e.setCustomName(colored);
         e.setCustomNameVisible(isShowName(data));
         e.setGlowing(isGlow(data));
-        if (e instanceof ArmorStand as) {
-            as.setGravity(true);
-        }
+        if (e instanceof ArmorStand as) as.setGravity(true);
     }
 
-    /** Re-render every NPC (used after /sb reload when global defaults change). */
-    public void refreshAllVisuals() {
-        for (NPCData d : npcs.values()) applyVisuals(d);
+    /** Equips the NPC's main-hand item from data.getMainHand() (Material name, e.g. DIAMOND_SWORD). */
+    public void applyEquipment(NPCData data) {
+        if (data.getEntityUuid() == null) return;
+        Entity e = Bukkit.getEntity(data.getEntityUuid());
+        if (!(e instanceof LivingEntity living)) return;
+        EntityEquipment eq = living.getEquipment();
+        if (eq == null) return;
+        eq.setItemInMainHandDropChance(0f);
+        if (data.getMainHand() == null || data.getMainHand().isBlank()) {
+            eq.setItemInMainHand(null, true);
+            return;
+        }
+        Material m = Material.matchMaterial(data.getMainHand().toUpperCase(Locale.ROOT));
+        if (m == null) { eq.setItemInMainHand(null, true); return; }
+        eq.setItemInMainHand(new ItemStack(m), true);
+    }
+
+    /** Equips the NPC's helmet slot with the skin-skull if configured. */
+    public void applySkin(NPCData data) {
+        if (data.getEntityUuid() == null) return;
+        Entity e = Bukkit.getEntity(data.getEntityUuid());
+        if (!(e instanceof LivingEntity living)) return;
+
+        EntityEquipment eq = living.getEquipment();
+        if (eq == null) return;
+
+        if (!data.hasSkin()) {
+            // Clear helmet only if we previously set one (i.e. empty slot check is skipped; we always clean up).
+            eq.setHelmet(null, true);
+            eq.setHelmetDropChance(0f);
+            return;
+        }
+
+        // If we already have a cached skull, apply it now. Otherwise put placeholder and fetch async.
+        plugin.getSkinManager().getSkull(data.getSkinName(), () -> {
+            // Re-apply on main thread once fetch completes.
+            applySkin(data);
+        });
+        ItemStack skull = plugin.getSkinManager().getCached(data.getSkinName());
+        if (skull == null) {
+            // Placeholder will be applied until async fetch completes; the callback above re-applies.
+            return;
+        }
+        eq.setHelmet(skull, true);
+        eq.setHelmetDropChance(0f);
     }
 
     private static EntityType matchType(String s) {
@@ -269,8 +398,16 @@ public class NPCManager {
             String type = dataConfig.getString(path + "settings.entity-type");
             if (type != null) data.setEntityType(matchType(type));
             data.setProfession(ConfigManager.parseProfession(dataConfig.getString(path + "settings.profession")));
+            data.setSkinName(dataConfig.getString(path + "settings.skin"));
+            if (dataConfig.contains(path + "settings.commands"))
+                data.setCanExecuteCommands(dataConfig.getBoolean(path + "settings.commands"));
+            if (dataConfig.contains(path + "settings.console-executor"))
+                data.setConsoleExecutor(dataConfig.getBoolean(path + "settings.console-executor"));
+            if (dataConfig.contains(path + "settings.hostile"))
+                data.setHostile(dataConfig.getBoolean(path + "settings.hostile"));
+            data.setMainHand(dataConfig.getString(path + "settings.main-hand"));
 
-            npcs.put(name.toLowerCase(Locale.ROOT), data);
+            npcs.put(plainKey(name), data);
             spawnEntity(data);
         }
         plugin.getLogger().info("Loaded " + npcs.size() + " NPC(s) from npcs.yml");
@@ -293,6 +430,11 @@ public class NPCManager {
             setOrNull(s + "chat-radius", data.getChatRadiusRaw());
             dataConfig.set(s + "entity-type", data.getEntityType().name());
             dataConfig.set(s + "profession", data.getProfession() == null ? null : data.getProfession().name());
+            dataConfig.set(s + "skin", data.getSkinName());
+            setOrNull(s + "commands", data.getCanExecuteCommandsRaw());
+            setOrNull(s + "console-executor", data.getConsoleExecutorRaw());
+            setOrNull(s + "hostile", data.getHostileRaw());
+            dataConfig.set(s + "main-hand", data.getMainHand());
         }
         persist();
     }
@@ -332,7 +474,11 @@ public class NPCManager {
     private void startLookTask() {
         Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             for (NPCData data : npcs.values()) {
-                if (data.getLocation() == null || data.getLocation().getWorld() == null) continue;
+                Location loc = data.getLocation();
+                if (loc == null || loc.getWorld() == null) continue;
+
+                // Only tick NPCs in loaded chunks — never force-load chunks!
+                if (!loc.getWorld().isChunkLoaded(loc.getBlockX() >> 4, loc.getBlockZ() >> 4)) continue;
 
                 if (data.getEntityUuid() == null) { spawnEntity(data); continue; }
                 Entity e = Bukkit.getEntity(data.getEntityUuid());

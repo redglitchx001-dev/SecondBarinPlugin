@@ -75,7 +75,8 @@ public class ChatService {
                 if (npc.getLocation().distanceSquared(player.getLocation()) > radius * radius) continue;
 
                 boolean nameOnly = npc.getNameOnlyRaw() != null ? npc.getNameOnlyRaw() : nameOnlyDefault;
-                if (nameOnly && !msg.toLowerCase(Locale.ROOT).contains(npc.getName().toLowerCase(Locale.ROOT))) continue;
+                String plainNpcName = me.sailex.secondbrain.util.Text.stripColors(npc.getName()).toLowerCase(Locale.ROOT).trim();
+                if (nameOnly && !msg.toLowerCase(Locale.ROOT).contains(plainNpcName)) continue;
 
                 targets.add(npc);
                 if (targets.size() >= Math.max(1, cm.getMaxNpcsPerMessage())) break;
@@ -132,9 +133,24 @@ public class ChatService {
             }
         }
 
+        // Append a "sight snapshot" of what the NPC sees so it can answer about surroundings.
+        String sight = me.sailex.secondbrain.npc.Sight.snapshot(plugin, npc);
+        String sightPrefix = "[Environment: " + sight + "] ";
+        String effectiveMsg = sightPrefix + msg;
         String userContent = player.getName() + ": " + msg;
 
-        plugin.getLlmClient().chat(npc.getSystemPrompt(), player.getName(), msg, snapshot)
+        // Augment the system prompt with the action-tag documentation.
+        String systemPrompt = npc.getSystemPrompt()
+                + "\n\nYou may use these special tags in your reply:"
+                + "\n- [SAY:your dialogue] spoken text (use this instead of raw text if you also use actions)"
+                + "\n- [WALK:X,Y,Z] ask permission to walk to block coordinates"
+                + "\n- [BREAK:X,Y,Z] ask permission to break a block"
+                + "\n- [PLACE:X,Y,Z:MATERIAL] ask permission to place a block"
+                + "\n- [ASK:your question?] ask the player a yes/no question (clickable buttons)"
+                + "\n- [CMD:/command] run a command (only when OP talks to you, only if you have permission)"
+                + "\nUse these only when relevant. For normal chat just reply with plain text.";
+
+        plugin.getLlmClient().chat(systemPrompt, player.getName(), effectiveMsg, snapshot)
                 .thenAccept(result -> Bukkit.getScheduler().runTask(plugin, () -> {
                     npc.setThinking(false);
                     clearActionBar(npc);
@@ -145,9 +161,14 @@ public class ChatService {
                         return;
                     }
 
+                    // Parse actions (walk/break/place/ask) first (they emit their own chat prompts).
+                    String afterActions = plugin.getNpcActions().parseAndRequest(npc, player.getName(), result.reply());
+                    // Then command execution.
+                    String cleanReply = plugin.getCommandExecutor().executeAndStrip(npc, player.getName(), afterActions);
+
                     synchronized (history) {
                         history.add(new String[]{"user", userContent});
-                        history.add(new String[]{"assistant", result.reply()});
+                        history.add(new String[]{"assistant", cleanReply});
                         int max = Math.max(2, cm.getMaxHistory());
                         while (history.size() > max) history.remove(0);
                     }
@@ -155,12 +176,23 @@ public class ChatService {
                     npc.incrementReplies();
                     plugin.getStats().recordReply(result.latencyMs());
 
-                    broadcastReply(npc, player, result.reply());
+                    broadcastReply(npc, player, cleanReply);
                 }));
     }
 
     /** Directly addresses one NPC (used by /sb test and future scripting). No radius or cooldown checks. */
     public void sendDirect(NPCData npc, Player player, String msg) {
+        if (npc.isThinking()) {
+            player.sendMessage(plugin.getConfigManager().msg("busy", "name", npc.getName()));
+            return;
+        }
+        dispatch(npc, player, msg);
+    }
+
+    /** Injects a synthetic player message into the NPC's conversation (used by yes/no answers from buttons). */
+    public void injectPlayerMessage(String npcId, Player player, String msg) {
+        NPCData npc = plugin.getNpcManager().findById(npcId);
+        if (npc == null) return;
         if (npc.isThinking()) {
             player.sendMessage(plugin.getConfigManager().msg("busy", "name", npc.getName()));
             return;

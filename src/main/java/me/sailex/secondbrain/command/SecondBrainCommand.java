@@ -5,12 +5,19 @@ import me.sailex.secondbrain.config.ConfigManager;
 import me.sailex.secondbrain.npc.NPCData;
 import me.sailex.secondbrain.npc.NPCManager;
 import me.sailex.secondbrain.util.Text;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.event.ClickEvent;
+import net.kyori.adventure.text.event.HoverEvent;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextDecoration;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
+import org.bukkit.Material;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Villager;
@@ -25,16 +32,17 @@ import java.util.Locale;
 public class SecondBrainCommand implements CommandExecutor, TabCompleter {
 
     private static final List<String> SUBCOMMANDS = List.of(
-            "help", "gui", "create", "remove", "removeall", "rename", "list", "info", "near",
-            "tp", "move", "setprompt", "prompt", "setradius", "settype", "setprofession",
+            "help", "gui", "create", "clone", "remove", "removeall", "rename", "list", "info", "near",
+            "tp", "move", "tphere", "setprompt", "prompt", "setradius", "settype", "setprofession",
+            "setskin", "clearskin", "hold", "op", "deop",
             "set", "toggle", "clearmemory", "focus", "unfocus", "test",
-            "setkey", "seturl", "setmodel", "status", "stats", "save", "reload", "version"
+            "setkey", "seturl", "setmodel", "status", "stats", "save", "reload", "version", "more"
     );
 
     private static final List<String> GLOBAL_TOGGLES = List.of(
             "chat", "nameonly", "look", "nametags", "glow", "typing", "debug");
     private static final List<String> NPC_TOGGLES = List.of(
-            "chat", "nameonly", "look", "nametag", "glow", "baby");
+            "chat", "nameonly", "look", "nametag", "glow", "baby", "commands", "hostile");
     private static final List<String> ON_OFF = List.of("on", "off");
     private static final List<String> ON_OFF_DEFAULT = List.of("on", "off", "default");
 
@@ -71,14 +79,40 @@ public class SecondBrainCommand implements CommandExecutor, TabCompleter {
             case "create" -> {
                 if (!perm(s, "secondbrain.admin") || !needPlayer(s)) return true;
                 if (args.length < 2) { usage(s, "/sb create <name>"); return true; }
-                String name = args[1];
-                if (!name.matches("[A-Za-z0-9_]{1,16}")) {
-                    s.sendMessage(cm.msgRaw("prefix") + "\u00a7cNames: 1-16 chars, letters/numbers/underscore only.");
+                String name = String.join(" ", Arrays.copyOfRange(args, 1, args.length));
+                if (!Text.validNpcName(name)) {
+                    s.sendMessage(cm.msgRaw("prefix") + "\u00a7cNames: 1-16 plain letters/numbers/underscores/spaces. &-color codes allowed, e.g. &cBob.");
                     return true;
                 }
                 String err = nm.createNPC(name, ((Player) s).getLocation());
-                if (err != null) s.sendMessage(cm.msg(err, "name", name));
-                else s.sendMessage(cm.msg("created", "name", name));
+                if (err != null) {
+                    if ("invalid-name".equals(err)) s.sendMessage(cm.msgRaw("prefix") + "\u00a7cInvalid name.");
+                    else s.sendMessage(cm.msg(err, "name", name));
+                } else {
+                    s.sendMessage(cm.msg("created", "name", Text.color(name)));
+                }
+            }
+            case "clone" -> {
+                if (!perm(s, "secondbrain.admin") || !needPlayer(s)) return true;
+                if (args.length < 3) { usage(s, "/sb clone <sourceName> <newName>"); return true; }
+                NPCData src = npcArg(s, args[1]);
+                if (src == null) return true;
+                String newName = String.join(" ", Arrays.copyOfRange(args, 2, args.length));
+                String err = nm.cloneNPC(src, newName, ((Player) s).getLocation());
+                if (err != null) {
+                    if ("invalid-name".equals(err)) s.sendMessage(cm.msgRaw("prefix") + "\u00a7cInvalid name.");
+                    else s.sendMessage(cm.msg(err, "name", newName));
+                } else {
+                    s.sendMessage(cm.msg("created", "name", Text.color(newName)) + " \u00a77(cloned from \u00a7f" + src.getName() + "\u00a77)");
+                }
+            }
+            case "tphere" -> {
+                if (!perm(s, "secondbrain.admin") || !needPlayer(s)) return true;
+                if (args.length < 2) { usage(s, "/sb tphere <name>"); return true; }
+                NPCData npc = npcArg(s, args[1]);
+                if (npc == null) return true;
+                nm.move(npc.getName(), ((Player) s).getLocation());
+                s.sendMessage(cm.msg("moved", "name", npc.getName()));
             }
             case "remove" -> {
                 if (!perm(s, "secondbrain.admin")) return true;
@@ -114,14 +148,15 @@ public class SecondBrainCommand implements CommandExecutor, TabCompleter {
                 if (args.length < 3) { usage(s, "/sb rename <old> <new>"); return true; }
                 NPCData npc = npcArg(s, args[1]);
                 if (npc == null) return true;
-                String newName = args[2];
-                if (!newName.matches("[A-Za-z0-9_]{1,16}")) {
-                    s.sendMessage(cm.msgRaw("prefix") + "\u00a7cNames: 1-16 chars, letters/numbers/underscore only.");
+                String newName = String.join(" ", Arrays.copyOfRange(args, 2, args.length));
+                if (!Text.validNpcName(newName)) {
+                    s.sendMessage(cm.msgRaw("prefix") + "\u00a7cNames: 1-16 plain letters/numbers/underscores/spaces. &-color codes allowed, e.g. &cBob.");
                     return true;
                 }
                 String oldName = npc.getName();
                 if (nm.rename(oldName, newName)) {
-                    s.sendMessage(cm.msg("renamed", "old", oldName, "new", newName));
+                    plugin.getChatService().clearMemory(npc.getId());
+                    s.sendMessage(cm.msg("renamed", "old", oldName, "new", Text.color(newName)));
                 } else {
                     s.sendMessage(cm.msg("already-exists", "name", newName));
                 }
@@ -164,9 +199,14 @@ public class SecondBrainCommand implements CommandExecutor, TabCompleter {
                 s.sendMessage("\u00a77Look at players: " + onOff(nm.isLookAtPlayers(npc)) + inherit(npc.getLookAtPlayersRaw()));
                 s.sendMessage("\u00a77Name tag: " + onOff(nm.isShowName(npc)) + inherit(npc.getShowNameRaw()));
                 s.sendMessage("\u00a77Glowing: " + onOff(nm.isGlow(npc)) + inherit(npc.getGlowRaw()));
+                s.sendMessage("\u00a77Can run commands: " + onOff(npc.canExecuteCommands()) + inherit(npc.getCanExecuteCommandsRaw())
+                        + (npc.isConsoleExecutor() ? " \u00a7c\u00a7l[CONSOLE/OP]\u00a77" : ""));
+                s.sendMessage("\u00a77Hostile (PvP): " + onOff(npc.isHostile()) + inherit(npc.getHostileRaw()));
+                s.sendMessage("\u00a77Holds: \u00a7f" + (npc.getMainHand() == null ? "(nothing)" : npc.getMainHand()));
                 s.sendMessage("\u00a77Radius: \u00a7f" + Text.num(nm.getChatRadius(npc)) + inherit(npc.getChatRadiusRaw()));
                 s.sendMessage("\u00a77Replies served: \u00a7f" + npc.getRepliesServed());
                 s.sendMessage("\u00a77Memory: \u00a7f" + plugin.getChatService().countMessages(npc.getId()) + " messages");
+                s.sendMessage("\u00a77Skin: \u00a7f" + (npc.hasSkin() ? npc.getSkinName() : "\u00a77(none)"));
                 s.sendMessage("\u00a77Prompt: \u00a7f" + npc.getSystemPrompt());
             }
             case "near" -> {
@@ -178,7 +218,8 @@ public class SecondBrainCommand implements CommandExecutor, TabCompleter {
                     s.sendMessage(cm.msg("near-none", "radius", Text.num(radius)));
                     return true;
                 }
-                s.sendMessage(cm.msgRaw("near-header", "radius", Text.num(radius), "count", String.valueOf(nearby.size())));
+                p.sendMessage(cm.msgRaw("near-header", "radius", Text.num(radius), "count", String.valueOf(nearby.size())));
+                LegacyComponentSerializer ser = LegacyComponentSerializer.legacySection();
                 for (NPCData n : nearby) {
                     Location nl = n.getLocation();
                     double dist = nl.distance(p.getLocation());
@@ -186,10 +227,24 @@ public class SecondBrainCommand implements CommandExecutor, TabCompleter {
                     double dx = nl.getX() - eye.getX();
                     double dz = nl.getZ() - eye.getZ();
                     String arrow = Text.direction(p.getLocation().getYaw(), dx, dz);
-                    s.sendMessage(cm.msgRaw("near-entry",
-                            "name", n.getName(),
-                            "dist", String.valueOf(Math.round(dist)),
-                            "direction", arrow));
+
+                    String displayName = n.getName().contains("&") || n.getName().contains("\u00a7")
+                            ? Text.color(n.getName()) : "\u00a7e" + n.getName();
+                    Component line = ser.deserialize(
+                            cm.msgRaw("near-entry",
+                                    "name", displayName,
+                                    "dist", String.valueOf(Math.round(dist)),
+                                    "direction", arrow)
+                    );
+                    Component tpBtn = Component.text(" [T]", NamedTextColor.AQUA)
+                            .decorate(TextDecoration.BOLD)
+                            .hoverEvent(HoverEvent.showText(Component.text("Teleport to " + Text.stripColors(n.getName()), NamedTextColor.YELLOW)))
+                            .clickEvent(ClickEvent.runCommand("/sb tp " + Text.stripColors(n.getName())));
+                    Component focusBtn = Component.text(" [F]", NamedTextColor.GREEN)
+                            .decorate(TextDecoration.BOLD)
+                            .hoverEvent(HoverEvent.showText(Component.text("Focus " + Text.stripColors(n.getName()) + " (chat goes straight to them)", NamedTextColor.YELLOW)))
+                            .clickEvent(ClickEvent.runCommand("/sb focus " + Text.stripColors(n.getName())));
+                    p.sendMessage(line.append(tpBtn).append(focusBtn));
                 }
             }
             case "tp" -> {
@@ -271,6 +326,102 @@ public class SecondBrainCommand implements CommandExecutor, TabCompleter {
                 nm.saveAll();
                 s.sendMessage(cm.msg("profession-set", "name", npc.getName(), "profession", prof.name()));
             }
+            case "setskin" -> {
+                if (!perm(s, "secondbrain.admin")) return true;
+                if (args.length < 3) { usage(s, "/sb setskin <name> <playerName>"); return true; }
+                NPCData npc = npcArg(s, args[1]);
+                if (npc == null) return true;
+                String skin = args[2];
+                if (!me.sailex.secondbrain.skin.SkinManager.validName(skin)) {
+                    s.sendMessage(cm.msgRaw("prefix") + "\u00a7cInvalid player name: \u00a7e" + skin);
+                    return true;
+                }
+                npc.setSkinName(skin);
+                nm.applySkin(npc);
+                nm.saveAll();
+                s.sendMessage(cm.msgRaw("prefix") + "\u00a7aFetching skin \u00a7e" + skin + "\u00a7a for \u00a7e" + npc.getName() + "\u00a7a...");
+                // Trigger a fetch so the helmet updates when complete.
+                plugin.getSkinManager().getSkull(skin, () -> {
+                    if (s instanceof Player p && !p.isOnline()) return;
+                    nm.applySkin(npc);
+                    s.sendMessage(cm.msgRaw("prefix") + "\u00a7aSkin applied to \u00a7e" + npc.getName() + "\u00a7a.");
+                });
+            }
+            case "clearskin" -> {
+                if (!perm(s, "secondbrain.admin")) return true;
+                if (args.length < 2) { usage(s, "/sb clearskin <name>"); return true; }
+                NPCData npc = npcArg(s, args[1]);
+                if (npc == null) return true;
+                npc.setSkinName(null);
+                nm.applySkin(npc);
+                nm.saveAll();
+                s.sendMessage(cm.msgRaw("prefix") + "\u00a7aSkin removed from \u00a7e" + npc.getName() + "\u00a7a.");
+            }
+            case "hold" -> {
+                if (!perm(s, "secondbrain.admin")) return true;
+                if (args.length < 3) { usage(s, "/sb hold <name> <material|none>"); return true; }
+                NPCData npc = npcArg(s, args[1]);
+                if (npc == null) return true;
+                String mat = args[2];
+                if (mat.equalsIgnoreCase("none") || mat.equalsIgnoreCase("clear")) {
+                    npc.setMainHand(null);
+                } else {
+                    Material m = Material.matchMaterial(mat);
+                    if (m == null) {
+                        s.sendMessage(cm.msgRaw("prefix") + "\u00a7cUnknown material: \u00a7e" + mat);
+                        return true;
+                    }
+                    npc.setMainHand(m.name());
+                }
+                nm.applyEquipment(npc);
+                if (npc.isHostile()) nm.spawnEntity(npc);
+                nm.saveAll();
+                s.sendMessage(cm.msgRaw("prefix") + "\u00a7e" + npc.getName() + " \u00a7anow holds: \u00a7f" + (npc.getMainHand() == null ? "(nothing)" : npc.getMainHand()));
+            }
+            case "op" -> {
+                if (!perm(s, "secondbrain.admin")) return true;
+                if (args.length < 2) { usage(s, "/sb op <name>"); return true; }
+                NPCData npc = npcArg(s, args[1]); if (npc == null) return true;
+                npc.setCanExecuteCommands(true);
+                npc.setConsoleExecutor(true);
+                nm.saveAll();
+                s.sendMessage(cm.msgRaw("prefix") + "\u00a76\u00a7l" + npc.getName()
+                        + " \u00a76is now a trusted \u00a7cOP NPC\u00a76. Commands will run as console when an OP talks to them. \u00a7cOnly do this for NPCs you trust!");
+            }
+            case "deop" -> {
+                if (!perm(s, "secondbrain.admin")) return true;
+                if (args.length < 2) { usage(s, "/sb deop <name>"); return true; }
+                NPCData npc = npcArg(s, args[1]); if (npc == null) return true;
+                npc.setConsoleExecutor(false);
+                nm.saveAll();
+                s.sendMessage(cm.msgRaw("prefix") + "\u00a7a" + npc.getName() + " \u00a7ais no longer an OP NPC.");
+            }
+            case "more" -> {
+                s.sendMessage("\u00a78\u00a7m--------------------------------------------");
+                s.sendMessage("  \u00a7d\u00a7lWhat more can we add to SecondBrain?");
+                s.sendMessage("\u00a78\u00a7m--------------------------------------------");
+                String[][] lines = {
+                        {"\u00a7b\u2708", "Ranged combat", "bows, crossbows, tridents (raycast)"},
+                        {"\u00a7c\u2694", "Shield blocking", "parry + sweep attacks"},
+                        {"\u00a7e\ud83d\udee1", "Armor + offhand", "full armor sets & shields"},
+                        {"\u00a75\u2708", "Elytra / crystal PvP", "flight & end-crystal pathing"},
+                        {"\u00a76\ud83d\udc65", "Follow / guard", "/sb follow & patrol waypoints"},
+                        {"\u00a7a\ud83c\udfe0", "Factions / guards", "claim guards, attack intruders"},
+                        {"\u00a72\ud83d\udcb0", "Trading", "villager-style GUIs with custom trades"},
+                        {"\u00a7c\ud83d\udde1", "Quests", "dialog trees & objectives"},
+                        {"\u00a7d\ud83c\udfad", "Emotes / animations", "sit, wave, dance via packets"},
+                        {"\u00a7e\ud83c\udfb5", "Voice", "TTS voice lines (requires ElevenLabs/OpenAI)"},
+                        {"\u00a79\ud83d\udcc5", "Schedules", "wake/sleep/work routines"},
+                        {"\u00a73\ud83e\udde0", "Long-term memory", "vector/embedding recall"},
+                        {"\u00a7c\u2b50", "Boss bars", "health bar + fight music cues"},
+                        {"\u00a7e\ud83c\udfaf", "Skill trees", "leveling / unlocks per NPC"},
+                        {"\u00a7b\ud83d\udcac", "Parties", "group chat across NPCs"},
+                };
+                for (String[] l : lines)
+                    s.sendMessage(" " + l[0] + " \u00a7f" + l[1] + " \u00a78- " + l[2]);
+                s.sendMessage("\u00a77Just tell me which to build next!");
+                return true;
+            }
             case "set" -> {
                 if (!perm(s, "secondbrain.admin")) return true;
                 if (args.length < 4) { usage(s, "/sb set <name> <" + String.join("|", NPC_TOGGLES) + "> <on|off|default>"); return true; }
@@ -287,6 +438,7 @@ public class SecondBrainCommand implements CommandExecutor, TabCompleter {
                     val = Text.parseBool(args[3]);
                     if (val == null) { s.sendMessage(cm.msg("invalid-bool")); return true; }
                 }
+                boolean needsRespawn = setting.equals("baby");
                 switch (setting) {
                     case "chat" -> npc.setChatEnabled(val);
                     case "nameonly" -> npc.setNameOnly(val);
@@ -294,11 +446,14 @@ public class SecondBrainCommand implements CommandExecutor, TabCompleter {
                     case "nametag" -> npc.setShowName(val);
                     case "glow" -> npc.setGlow(val);
                     case "baby" -> npc.setBaby(val);
+                    case "commands" -> npc.setCanExecuteCommands(val);
+                    case "hostile" -> { npc.setHostile(val); needsRespawn = true; }
                     default -> {}
                 }
                 nm.saveAll();
                 nm.applyVisuals(npc);
-                if (setting.equals("baby")) nm.spawnEntity(npc);
+                nm.applyEquipment(npc);
+                if (needsRespawn) nm.spawnEntity(npc);
                 s.sendMessage(cm.msg("npc-set",
                         "name", npc.getName(),
                         "setting", setting,
@@ -368,7 +523,10 @@ public class SecondBrainCommand implements CommandExecutor, TabCompleter {
                     s.sendMessage(cm.msgRaw("prefix") + "\u00a77Asking \u00a7e" + npc.getName() + "\u00a77...");
                     plugin.getLlmClient().chat(npc.getSystemPrompt(), "Console", message, new ArrayList<>())
                             .thenAccept(result -> Bukkit.getScheduler().runTask(plugin,
-                                    () -> s.sendMessage(cm.msgRaw("test-header", "npc", npc.getName()) + " " + result.reply())));
+                                    () -> {
+                                        String clean = plugin.getCommandExecutor().executeAndStrip(npc, null, result.reply());
+                                        s.sendMessage(cm.msgRaw("test-header", "npc", npc.getName()) + " " + clean);
+                                    }));
                 }
             }
             case "setkey" -> {
@@ -447,14 +605,17 @@ public class SecondBrainCommand implements CommandExecutor, TabCompleter {
         lines.add("\u00a7e/sb prompt <name> \u00a77- show an NPC's prompt");
         lines.add("\u00a7e/sb status \u00a78| /sb stats \u00a77- connection / statistics");
         if (admin) {
-            lines.add("\u00a7e/sb create <name> \u00a78| /sb remove <name> \u00a78| /sb removeall");
-            lines.add("\u00a7e/sb rename <old> <new> \u00a78| /sb move <name> \u00a78| /sb tp <name>");
+            lines.add("\u00a7e/sb create <name> \u00a78| /sb clone <src> <name> \u00a78| /sb remove <name> \u00a78| /sb removeall");
+            lines.add("\u00a7e/sb rename <old> <new> \u00a78| /sb move|tphere|tp <name>");
             lines.add("\u00a7e/sb setprompt <name> <text>");
             lines.add("\u00a7e/sb set <name> <setting> <on|off|default>");
             lines.add("\u00a7e/sb setradius <name> <blocks> \u00a78| /sb settype \u00a78| /sb setprofession");
+            lines.add("\u00a7e/sb setskin <name> <player> \u00a78| /sb clearskin <name> \u00a78| /sb hold <name> <mat|none>");
             lines.add("\u00a7e/sb toggle <" + String.join("|", GLOBAL_TOGGLES) + "> \u00a78[on|off]");
             lines.add("\u00a7e/sb clearmemory <name|all> \u00a78| /sb test <name> <msg>");
             lines.add("\u00a7e/sb setkey <key> \u00a78| /sb seturl <url> \u00a78| /sb setmodel <model>");
+            lines.add("\u00a7c/sb op <name> \u00a78(trusted console NPC) \u00a77| /sb deop <name>");
+            lines.add("\u00a7d/sb more \u00a78- ideas for what to add next");
             lines.add("\u00a7e/sb save \u00a78| /sb reload");
         }
 
@@ -497,8 +658,9 @@ public class SecondBrainCommand implements CommandExecutor, TabCompleter {
                 case "near" -> List.of("10", "20", "30", "50");
                 case "help", "list" -> List.of("1", "2");
                 case "clearmemory" -> filter(npcNamesPlus("all"), args[1]);
-                case "remove", "rename", "info", "tp", "move", "setprompt", "prompt",
-                     "setradius", "settype", "setprofession", "set", "test", "focus" -> filter(npcNames(), args[1]);
+                case "remove", "rename", "info", "tp", "move", "tphere", "clone",
+                     "setprompt", "prompt", "setradius", "settype", "setprofession",
+                     "setskin", "clearskin", "hold", "op", "deop", "set", "test", "focus" -> filter(npcNames(), args[1]);
                 default -> List.of();
             };
         }
