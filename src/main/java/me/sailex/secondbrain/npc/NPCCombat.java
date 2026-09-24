@@ -29,14 +29,14 @@ public class NPCCombat {
     /** How far an NPC will chase a target before being teleported home. */
     private static final double LEASH_RADIUS = 24.0;
     /** Attack cooldown ticks per hit (sword speed ≈ 1.6s). */
-    private static final long ATTACK_COOLDOWN_TICKS = 20;
+    private static final int ATTACK_COOLDOWN_TICKS = 20;
     /** Attack range in blocks (melee). */
     private static final double ATTACK_RANGE = 2.2;
     /** Base melee damage. */
     private static final double BASE_DAMAGE = 6.0;
 
     private final SecondBrainPlugin plugin;
-    private final Map<UUID, Long> lastAttack = new ConcurrentHashMap<>();
+    private final Map<UUID, Integer> lastAttack = new ConcurrentHashMap<>();
 
     public NPCCombat(SecondBrainPlugin plugin) {
         this.plugin = plugin;
@@ -94,8 +94,8 @@ public class NPCCombat {
                 // Face the target and try a melee hit if in range.
                 face(mob, target);
                 if (mob.getLocation().distanceSquared(target.getLocation()) <= ATTACK_RANGE * ATTACK_RANGE) {
-                    long now = Bukkit.getCurrentTick();
-                    long last = lastAttack.getOrDefault(data.getEntityUuid(), 0L);
+                    int now = Bukkit.getCurrentTick();
+                    int last = lastAttack.getOrDefault(data.getEntityUuid(), 0);
                     if (now - last >= ATTACK_COOLDOWN_TICKS) {
                         lastAttack.put(data.getEntityUuid(), now);
                         double dmg = BASE_DAMAGE;
