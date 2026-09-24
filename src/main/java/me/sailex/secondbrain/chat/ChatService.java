@@ -146,9 +146,12 @@ public class ChatService {
                 + "\n- [WALK:X,Y,Z] ask permission to walk to block coordinates"
                 + "\n- [BREAK:X,Y,Z] ask permission to break a block"
                 + "\n- [PLACE:X,Y,Z:MATERIAL] ask permission to place a block"
+                + "\n- [CRAFT:MATERIAL] ask to craft an item at a crafting table (you will walk to one)"
+                + "\n- [SMELT:MATERIAL] ask to smelt an item at a furnace"
+                + "\n- [ENCHANT:slot:enchant:level] enchant your held item (e.g. mainhand:sharpness:5)"
                 + "\n- [ASK:your question?] ask the player a yes/no question (clickable buttons)"
                 + "\n- [CMD:/command] run a command (only when OP talks to you, only if you have permission)"
-                + "\nUse these only when relevant. For normal chat just reply with plain text.";
+                + "\nUse these only when relevant. For normal chat just reply with plain text. You have your own inventory; you can carry items, pick things up, craft in a 2x2 grid yourself, use 3x3 tables and furnaces when near them.";
 
         // We prepend sight data to the message; LLMClient will add "<playerName>: " prefix,
         // so pass sight prefix in the message too.
@@ -163,10 +166,12 @@ public class ChatService {
                         return;
                     }
 
-                    // Parse actions (walk/break/place/ask) first (they emit their own chat prompts).
+                    // Walk/break/place/ask actions.
                     String afterActions = plugin.getNpcActions().parseAndRequest(npc, player.getName(), result.reply());
-                    // Then command execution.
-                    String cleanReply = plugin.getCommandExecutor().executeAndStrip(npc, player.getName(), afterActions);
+                    // Craft/smelt/enchant (stations).
+                    String afterCraft = plugin.getNpcCrafting().parseAndRequest(npc, player.getName(), afterActions);
+                    // Command execution.
+                    String cleanReply = plugin.getCommandExecutor().executeAndStrip(npc, player.getName(), afterCraft);
 
                     synchronized (history) {
                         history.add(new String[]{"user", userContent});

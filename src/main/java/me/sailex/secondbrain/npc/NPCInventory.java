@@ -34,7 +34,7 @@ import java.util.Base64;
  */
 public class NPCInventory implements InventoryHolder {
 
-    private static final int MAIN_SIZE = 36;
+    public static final int MAIN_SIZE = 36;
     private static final int CRAFT_SIZE = 4; // 2x2
     private final NPCData npc;
 

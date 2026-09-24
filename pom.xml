@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>me.sailex</groupId>
     <artifactId>SecondBrain</artifactId>
-    <version>5.4.0</version>
+    <version>5.6.0</version>
     <packaging>jar</packaging>
     <name>SecondBrain</name>
     <description>AI-powered NPCs for Paper 1.21.x — zero dependencies, custom engine, custom skins, anvil rename GUI.</description>

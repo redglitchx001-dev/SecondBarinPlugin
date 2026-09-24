@@ -13,6 +13,7 @@ import me.sailex.secondbrain.listener.NPCProtectionListener;
 import me.sailex.secondbrain.listener.TabListListener;
 import me.sailex.secondbrain.llm.LLMClient;
 import me.sailex.secondbrain.npc.NPCActions;
+import me.sailex.secondbrain.npc.NPCCrafting;
 import me.sailex.secondbrain.npc.NPCCombat;
 import me.sailex.secondbrain.npc.NPCManager;
 import me.sailex.secondbrain.skin.SkinManager;
@@ -39,6 +40,7 @@ public class SecondBrainPlugin extends JavaPlugin {
     private NPCManager npcManager;
     private NPCCombat npcCombat;
     private NPCActions npcActions;
+    private NPCCrafting npcCrafting;
     private CommandExecutor commandExecutor;
     private ChatService chatService;
     private GUIManager guiManager;
@@ -54,6 +56,7 @@ public class SecondBrainPlugin extends JavaPlugin {
         skinManager = new SkinManager(this);
         commandExecutor = new CommandExecutor(this);
         npcActions = new NPCActions(this);
+        npcCrafting = new NPCCrafting(this);
         npcManager = new NPCManager(this);
         npcCombat = new NPCCombat(this);
         chatService = new ChatService(this);
@@ -74,6 +77,9 @@ public class SecondBrainPlugin extends JavaPlugin {
         ActionCommand ac = new ActionCommand(this);
         PluginCommand sba = getCommand("sbaction");
         if (sba != null) { sba.setExecutor(ac); sba.setTabCompleter(ac); }
+        CraftCommand cc = new CraftCommand(this);
+        PluginCommand sbc = getCommand("sbcraft");
+        if (sbc != null) { sbc.setExecutor(cc); sbc.setTabCompleter(cc); }
 
         if (!configManager.isKeyConfigured()) {
             getLogger().warning("No API key configured yet. Use /sb setkey <key> or edit config.yml.");
@@ -106,6 +112,7 @@ public class SecondBrainPlugin extends JavaPlugin {
     public NPCManager getNpcManager() { return npcManager; }
     public NPCCombat getNpcCombat() { return npcCombat; }
     public NPCActions getNpcActions() { return npcActions; }
+    public NPCCrafting getNpcCrafting() { return npcCrafting; }
     public CommandExecutor getCommandExecutor() { return commandExecutor; }
     public ChatService getChatService() { return chatService; }
     public GUIManager getGuiManager() { return guiManager; }

@@ -13,6 +13,9 @@ commands:
   sbaction:
     description: Internal command used by clickable NPC action prompts (approve/deny/yes/no)
     usage: /sbaction <npcId> <approve|deny|yes|no>
+  sbcraft:
+    description: Internal command used by NPC crafting/smelting/enchant approval buttons
+    usage: /sbcraft <npcId> <id> <approve|deny>
 
 permissions:
   secondbrain.use:
