@@ -10,6 +10,20 @@ public final class Text {
         return s == null ? "" : s.replace("&", "\u00a7");
     }
 
+    /** Strips all §/& color codes from a string (used for name matching / keying). */
+    public static String stripColors(String s) {
+        if (s == null) return "";
+        return s.replaceAll("(?i)[\u00a7&][0-9a-fk-orx]", "");
+    }
+
+    /** Validates an NPC name (with or without & color codes). Plain-text length must be 1-16. */
+    public static boolean validNpcName(String s) {
+        if (s == null || s.isEmpty()) return false;
+        String plain = stripColors(s);
+        if (plain.isEmpty() || plain.length() > 16) return false;
+        return plain.matches("[A-Za-z0-9_ ]{1,16}");
+    }
+
     /** Masks an API key for safe display: sk-abc123xyz -> sk-a***xyz */
     public static String maskKey(String key) {
         if (key == null || key.isBlank()) return "(empty)";

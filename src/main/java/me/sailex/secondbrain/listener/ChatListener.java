@@ -20,7 +20,7 @@ import java.util.regex.Pattern;
  */
 public class ChatListener implements Listener {
 
-    private static final Pattern NPC_NAME = Pattern.compile("[A-Za-z0-9_]{1,16}");
+    private static final Pattern NPC_NAME = Pattern.compile("[A-Za-z0-9_ &\u00a7]{1,40}");
 
     private final SecondBrainPlugin plugin;
 
@@ -57,6 +57,27 @@ public class ChatListener implements Listener {
             player.sendMessage(cm.msgRaw("prefix") + "\u00a77Cancelled.");
             return;
         }
+
+        // RENAME and SET_SKIN go through shared handlers.
+        if (session.type() == GUIManager.InputType.RENAME_NPC) {
+            if (!player.hasPermission("secondbrain.admin")) {
+                player.sendMessage(cm.msg("no-perm")); return;
+            }
+            NPCData npc = nm.findById(session.npcId());
+            if (npc == null) { player.sendMessage(cm.msg("not-found", "name", session.npcName())); return; }
+            plugin.getGuiManager().applyRename(player, npc, msg);
+            return;
+        }
+        if (session.type() == GUIManager.InputType.SET_SKIN) {
+            if (!player.hasPermission("secondbrain.admin")) {
+                player.sendMessage(cm.msg("no-perm")); return;
+            }
+            NPCData npc = nm.findById(session.npcId());
+            if (npc == null) { player.sendMessage(cm.msg("not-found", "name", session.npcName())); return; }
+            if (msg.equalsIgnoreCase("clear")) { plugin.getGuiManager().applySkin(player, npc, ""); return; }
+            plugin.getGuiManager().applySkin(player, npc, msg);
+            return;
+        }
         if (msg.isEmpty()) {
             player.sendMessage(cm.msgRaw("prefix") + "\u00a77Empty input - nothing changed.");
             return;
@@ -68,26 +89,16 @@ public class ChatListener implements Listener {
                     player.sendMessage(cm.msg("no-perm"));
                     return;
                 }
-                if (!NPC_NAME.matcher(msg).matches()) {
-                    player.sendMessage(cm.msgRaw("prefix") + "\u00a7cNames: 1-16 chars, letters/numbers/underscore only.");
+                if (!me.sailex.secondbrain.util.Text.validNpcName(msg)) {
+                    player.sendMessage(cm.msgRaw("prefix") + "\u00a7cNames: 1-16 chars (letters/numbers/underscores/spaces; & colors allowed).");
                     return;
                 }
                 String err = nm.createNPC(msg, player.getLocation());
-                if (err != null) player.sendMessage(cm.msg(err, "name", msg));
-                else player.sendMessage(cm.msg("created", "name", msg));
-            }
-            case RENAME_NPC -> {
-                NPCData npc = nm.findById(session.npcId());
-                if (npc == null) { player.sendMessage(cm.msg("not-found", "name", session.npcName())); return; }
-                if (!NPC_NAME.matcher(msg).matches()) {
-                    player.sendMessage(cm.msgRaw("prefix") + "\u00a7cNames: 1-16 chars, letters/numbers/underscore only.");
-                    return;
-                }
-                if (nm.rename(npc.getName(), msg)) {
-                    plugin.getChatService().clearMemory(npc.getId()); // identity changed; old context is confusing
-                    player.sendMessage(cm.msg("renamed", "old", session.npcName(), "new", msg));
+                if (err != null) {
+                    if ("invalid-name".equals(err)) player.sendMessage(cm.msgRaw("prefix") + "\u00a7cInvalid name.");
+                    else player.sendMessage(cm.msg(err, "name", msg));
                 } else {
-                    player.sendMessage(cm.msg("already-exists", "name", msg));
+                    player.sendMessage(cm.msg("created", "name", me.sailex.secondbrain.util.Text.color(msg)));
                 }
             }
             case SET_PROMPT -> {

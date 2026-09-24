@@ -1,0 +1,53 @@
+# ------------------------------------------------------------------
+#  Optional: Auto-release workflow.
+#  Drop the `release:` job into build.yml (or save as release.yml) and
+#  grant your GITHUB_TOKEN contents: write permission to enable
+#  automatic JAR upload when you push a tag like `v5.1.0`.
+# ------------------------------------------------------------------
+name: Build & Release
+
+on:
+  push:
+    branches: [ main, master ]
+    tags: [ 'v*' ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write   # needed to create GitHub Releases
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Build with Maven
+        run: mvn -B -ntp clean package
+
+      - name: Determine jar path
+        id: jar
+        run: |
+          JAR_PATH=$(ls target/SecondBrain-*.jar | head -n 1)
+          echo "path=$JAR_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Upload plugin jar (artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: SecondBrain-jar
+          path: ${{ steps.jar.outputs.path }}
+          if-no-files-found: error
+
+      - name: Release to GitHub (on tag push)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.jar.outputs.path }}
+          generate_release_notes: true
+          name: SecondBrain ${{ github.ref_name }}

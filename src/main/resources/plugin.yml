@@ -3,20 +3,26 @@ version: '${project.version}'
 main: me.sailex.secondbrain.SecondBrainPlugin
 api-version: '1.21'
 authors: [sailex428, XNetwork-Port]
-description: AI-powered NPCs for Paper 1.21.x. Custom built, ZERO dependencies.
+description: AI-powered NPCs for Paper 1.21.x. Walk, break blocks, combat, skins, GUI - zero dependencies.
 
 commands:
   secondbrain:
     description: Manage SecondBrain AI NPCs
     aliases: [sb, brain, ai]
     usage: /sb help
+  sbaction:
+    description: Internal command used by clickable NPC action prompts (approve/deny/yes/no)
+    usage: /sbaction <npcId> <approve|deny|yes|no>
+  sbcraft:
+    description: Internal command used by NPC crafting/smelting/enchant approval buttons
+    usage: /sbcraft <npcId> <id> <approve|deny>
 
 permissions:
   secondbrain.use:
     description: Talk to NPCs, open the GUI, view info/stats
-    default: op
+    default: true
   secondbrain.admin:
-    description: Create/edit/remove NPCs, change settings, reload
+    description: Create/edit/remove NPCs, change settings, reload, authorize world actions
     default: op
   secondbrain.bypass.cooldown:
     description: Bypass the per-player chat cooldown

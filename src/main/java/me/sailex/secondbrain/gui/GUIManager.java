@@ -1,11 +1,11 @@
 package me.sailex.secondbrain.gui;
 
 import me.sailex.secondbrain.SecondBrainPlugin;
-import me.sailex.secondbrain.config.ConfigManager;
 import me.sailex.secondbrain.npc.NPCData;
 import me.sailex.secondbrain.util.Text;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -15,6 +15,8 @@ import org.bukkit.entity.Villager;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
@@ -25,7 +27,7 @@ public class GUIManager {
 
     private static final LegacyComponentSerializer SER = LegacyComponentSerializer.legacySection();
 
-    // Title markers used by GUIListener to route clicks (plain-text contains checks).
+    // Title markers used by GUIListener to route clicks.
     public static final String TITLE_MAIN      = "\u00a70\u00a7l\u2726 \u00a7bSecondBrain \u00a70\u00a7l\u2726";
     public static final String TITLE_NPCS      = "\u00a70\u00a7lNPCs \u00a78- page ";
     public static final String TITLE_EDITOR    = "\u00a70\u00a7lNPC: ";
@@ -37,7 +39,7 @@ public class GUIManager {
     public static final String TITLE_STATUS    = "\u00a70\u00a7lConnection";
 
     /** Chat-input session types started from a GUI. */
-    public enum InputType { CREATE_NPC, RENAME_NPC, SET_PROMPT, SET_KEY, SET_URL, SET_MODEL }
+    public enum InputType { CREATE_NPC, RENAME_NPC, SET_PROMPT, SET_KEY, SET_URL, SET_MODEL, SET_SKIN }
 
     /** A pending chat-input request. */
     public record InputSession(InputType type, String npcId, String npcName) {}
@@ -64,15 +66,15 @@ public class GUIManager {
         player.closeInventory();
         switch (type) {
             case CREATE_NPC -> hint(player, "&fType the &eNPC name&f in chat to create it at your location.");
-            case RENAME_NPC -> hint(player, "&fType the &enew name&f for &e" + npc.getName() + "&f (or &ccancel&f).");
-            case SET_PROMPT -> hint(player, "&fType the &enew system prompt&f for &e" + npc.getName() + "&f (or &ccancel&f).");
-            case SET_KEY -> hint(player, "&fType the new &eAPI key&f (or &ccancel&f).");
-            case SET_URL -> hint(player, "&fType the new &eAPI URL&f (or &ccancel&f).");
-            case SET_MODEL -> hint(player, "&fType the new &emodel name&f (or &ccancel&f).");
+            case RENAME_NPC -> hint(player, "&fType the &enew name&f for &e" + npc.getName() + "&f in chat (or type &ccancel&f).");
+            case SET_PROMPT -> hint(player, "&fType the &enew system prompt&f for &e" + npc.getName() + "&f in chat (or type &ccancel&f).");
+            case SET_KEY -> hint(player, "&fType the new &eAPI key&f in chat (or type &ccancel&f).");
+            case SET_URL -> hint(player, "&fType the new &eAPI URL&f in chat (or type &ccancel&f).");
+            case SET_MODEL -> hint(player, "&fType the new &emodel name&f in chat (or type &ccancel&f).");
+            case SET_SKIN -> hint(player, "&fType a Minecraft &eplayer name&f for &e" + npc.getName() + "&f's skin (or &cclear&f / &ccancel&f).");
         }
     }
 
-    /** @return the pending session for this player, or null. */
     public InputSession takeInput(Player player) { return inputs.remove(player.getUniqueId()); }
     public InputSession peekInput(Player player) { return inputs.get(player.getUniqueId()); }
 
@@ -146,9 +148,7 @@ public class GUIManager {
     //  NPC list (paginated)
     // ============================================================
 
-    public void openNPCList(Player player) {
-        openNPCList(player, npcListPage.getOrDefault(player.getUniqueId(), 0));
-    }
+    public void openNPCList(Player player) { openNPCList(player, npcListPage.getOrDefault(player.getUniqueId(), 0)); }
 
     public void openNPCList(Player player, int page) {
         var all = plugin.getNpcManager().getAllNPCs().values().stream()
@@ -197,7 +197,8 @@ public class GUIManager {
             } else {
                 b.lore("\u00a77Say its name in chat to talk to it.");
             }
-            inv.setItem(slot, b.build());
+            // Stamp the NPC id onto the item so click handlers don't have to parse names.
+            inv.setItem(slot, NPCInventoryHolder.stamp(b.build(), d));
             slot++;
             shown++;
         }
@@ -239,73 +240,139 @@ public class GUIManager {
                 .lore("\u00a77ID: \u00a7f" + npc.getId(),
                         "\u00a77Type: \u00a7f" + npc.getEntityType().name()
                                 + (npc.getProfession() != null ? " \u00a77(\u00a7f" + npc.getProfession() + "\u00a77)" : ""),
+                        "\u00a77Skin: \u00a7f" + (npc.hasSkin() ? npc.getSkinName() : "\u00a77(none)"),
                         "\u00a77World: \u00a7f" + worldName(npc),
                         "\u00a77Replies served: \u00a7f" + npc.getRepliesServed(),
                         "\u00a77Memory: \u00a7f" + memories + " messages")
                 .build());
 
+        // Row 1 (slots 10-16): toggle buttons
         inv.setItem(10, toggleItem(Material.PAPER, "AI Chat", chat, npc.getChatEnabledRaw() == null));
         inv.setItem(11, toggleItem(Material.NAME_TAG, "Name-Only", nameOnly, npc.getNameOnlyRaw() == null));
         inv.setItem(12, toggleItem(Material.ENDER_EYE, "Look At Players", look, npc.getLookAtPlayersRaw() == null));
-        inv.setItem(19, toggleItem(Material.OAK_SIGN, "Show Name Tag", showName, npc.getShowNameRaw() == null));
-        inv.setItem(20, toggleItem(Material.GLOWSTONE_DUST, "Glowing", glow, npc.getGlowRaw() == null));
-        inv.setItem(21, toggleItem(Material.EGG, "Baby (ageable types)",
-                Boolean.TRUE.equals(npc.getBabyRaw()), npc.getBabyRaw() == null));
+        inv.setItem(14, toggleItem(Material.COMMAND_BLOCK, "Run Commands", npc.canExecuteCommands(), npc.getCanExecuteCommandsRaw() == null));
+        inv.setItem(15, toggleItem(Material.OAK_SIGN, "Show Name Tag", showName, npc.getShowNameRaw() == null));
+        inv.setItem(16, toggleItem(Material.GLOWSTONE_DUST, "Glowing", glow, npc.getGlowRaw() == null));
 
-        inv.setItem(13, new ItemBuilder(Material.CLOCK)
+        // Row 2 (slots 19-25): more toggles + radius
+        inv.setItem(19, toggleItem(Material.EGG, "Baby (ageable types)",
+                Boolean.TRUE.equals(npc.getBabyRaw()), npc.getBabyRaw() == null));
+        inv.setItem(20, toggleItem(Material.IRON_SWORD, "Hostile (PvP)", npc.isHostile(), npc.getHostileRaw() == null));
+        inv.setItem(21, heldItem(npc));
+        inv.setItem(22, new ItemBuilder(Material.CLOCK)
                 .name("\u00a7b\u00a7lChat Radius: \u00a7f" + Text.num(radius))
                 .lore(npc.getChatRadiusRaw() == null ? "\u00a78Inheriting global default" : "\u00a78Custom radius",
                         "",
-                        "\u00a77Use the \u00a7a+\u00a77/\u00a7c-\u00a77 buttons below.")
+                        "\u00a77Use the \u00a7a+\u00a77/\u00a7c-\u00a77 buttons to the right.")
                 .build());
-        inv.setItem(15, new ItemBuilder(Material.LIME_STAINED_GLASS_PANE).name("\u00a7a+1").build());
-        inv.setItem(16, new ItemBuilder(Material.LIME_STAINED_GLASS).name("\u00a7a+5").build());
-        inv.setItem(23, new ItemBuilder(Material.RED_STAINED_GLASS_PANE).name("\u00a7c-1").build());
-        inv.setItem(24, new ItemBuilder(Material.RED_STAINED_GLASS).name("\u00a7c-5").build());
+        inv.setItem(23, new ItemBuilder(Material.LIME_STAINED_GLASS_PANE).name("\u00a7a+1").build());
+        inv.setItem(24, new ItemBuilder(Material.LIME_STAINED_GLASS_PANE).name("\u00a7a+5").build());
+        inv.setItem(25, new ItemBuilder(Material.RED_STAINED_GLASS_PANE).name("\u00a7c-1").build());
 
-        inv.setItem(29, new ItemBuilder(Material.WRITABLE_BOOK)
+        // Row 3 (slots 28-34): prompt / type / profession / rename / skin / held
+        inv.setItem(28, new ItemBuilder(Material.WRITABLE_BOOK)
                 .name("\u00a7d\u00a7lSet Prompt")
                 .lore("\u00a77Personality of this NPC.",
                         "\u00a77Click, then type it in chat.")
                 .build());
-
-        inv.setItem(31, new ItemBuilder(eggFor(npc.getEntityType()))
+        inv.setItem(29, new ItemBuilder(eggFor(npc.getEntityType()))
                 .name("\u00a7e\u00a7lEntity Type")
                 .lore("\u00a77Current: \u00a7f" + npc.getEntityType().name(),
                         "\u00a77Click to change.")
                 .build());
-
         if (npc.getEntityType() == EntityType.VILLAGER) {
-            inv.setItem(33, new ItemBuilder(Material.EMERALD)
+            inv.setItem(30, new ItemBuilder(Material.EMERALD)
                     .name("\u00a7a\u00a7lProfession")
                     .lore("\u00a77Current: \u00a7f" + (npc.getProfession() == null ? "NONE" : npc.getProfession()),
                             "\u00a77Click to change.")
                     .build());
         }
-
-        inv.setItem(38, new ItemBuilder(Material.ANVIL)
+        inv.setItem(32, new ItemBuilder(Material.NAME_TAG)
                 .name("\u00a76\u00a7lRename")
-                .lore("\u00a77Click, then type the new name.")
+                .lore("\u00a77Click, then type the new name in chat.")
                 .build());
-        inv.setItem(40, new ItemBuilder(Material.ENDER_PEARL)
-                .name("\u00a75\u00a7lTeleport To NPC")
+        inv.setItem(33, new ItemBuilder(Material.PLAYER_HEAD)
+                .name("\u00a7b\u00a7lSet Skin")
+                .lore(npc.hasSkin()
+                                ? ("\u00a77Current: \u00a7f" + npc.getSkinName())
+                                : "\u00a77No skin set (default look).",
+                        "\u00a77Left-click: type a player name in chat.",
+                        "\u00a7cRight-click: remove the skin.")
                 .build());
-        inv.setItem(42, new ItemBuilder(Material.COMPASS)
-                .name("\u00a79\u00a7lMove NPC Here")
-                .build());
+        inv.setItem(34, new ItemBuilder(Material.RED_STAINED_GLASS_PANE).name("\u00a7c-5").build());
 
-        // bottom row
-        inv.setItem(45, new ItemBuilder(Material.ARROW).name("\u00a7c\u00a7lBack").build());
-        inv.setItem(49, new ItemBuilder(Material.MAGMA_CREAM)
-                .name("\u00a7c\u00a7lClear Memory")
-                .lore("\u00a77Forgets every conversation.")
+        // Row 4 (slots 37-43): actions
+        inv.setItem(37, new ItemBuilder(Material.ENDER_PEARL)
+                .name("\u00a75\u00a7lTeleport To NPC")
+                .lore("\u00a77Teleports you to this NPC.")
                 .build());
-        inv.setItem(53, new ItemBuilder(Material.BARRIER)
+        inv.setItem(38, new ItemBuilder(npc.isConsoleExecutor() ? Material.REDSTONE_BLOCK : Material.REDSTONE_LAMP)
+                .name((npc.isConsoleExecutor() ? "\u00a7c\u00a7l\u26a0 CONSOLE/OP NPC" : "\u00a7e\u00a7lTrusted OP NPC"))
+                .lore(npc.isConsoleExecutor()
+                        ? new String[]{"\u00a7cCommands run as CONSOLE (bypass protections).",
+                                  "\u00a77Only active when an OP talks to this NPC.",
+                                  "", "\u00a77Left-click to DEMOTE (/sb deop)."}
+                        : new String[]{"\u00a77Promote this NPC to console executor.",
+                                  "\u00a7cOnly trusted NPCs \u2014 they can run any command",
+                                  "\u00a7c(except the internal blocklist).",
+                                  "", "\u00a77Left-click to PROMOTE (/sb op)."})
+                .build());
+        inv.setItem(39, new ItemBuilder(Material.COMPASS)
+                .name("\u00a79\u00a7lMove NPC Here")
+                .lore("\u00a77Teleports the NPC to your position.")
+                .build());
+        inv.setItem(40, new ItemBuilder(Material.CHEST)
+                .name("\u00a76\u00a7lNPC Inventory")
+                .lore("\u00a77Full player-size inventory (36 slots).",
+                        "\u00a77Includes armor, offhand, 2x2 crafting grid,",
+                        "\u00a77and furnace slots.",
+                        "",
+                        "\u00a77Command: \u00a7e/sb inv " + me.sailex.secondbrain.util.Text.stripColors(npc.getName()))
+                .build());
+        inv.setItem(42, new ItemBuilder(Material.MAGMA_CREAM)
+                .name("\u00a7c\u00a7lClear Memory")
+                .lore("\u00a77Forgets every conversation so far.")
+                .build());
+        inv.setItem(44, new ItemBuilder(Material.BARRIER)
                 .name("\u00a74\u00a7lDelete NPC")
                 .lore("\u00a77Removes the entity and data.")
                 .build());
 
+        // Bottom row has no side panes - move back arrow.
+        inv.setItem(49, new ItemBuilder(Material.ARROW).name("\u00a7c\u00a7lBack").build());
+        inv.setItem(48, new ItemBuilder(Material.ARMOR_STAND)
+                .name("\u00a7b\u00a7lClone NPC")
+                .lore("\u00a77Spawns a copy with a ' (2)' suffix,",
+                        "\u00a77same settings/prompt/location.")
+                .build());
+        inv.setItem(50, new ItemBuilder(Material.KNOWLEDGE_BOOK)
+                .name("\u00a7d\u00a7lWhat More Can We Add?")
+                .lore("\u00a77Click to see the roadmap.",
+                        "\u00a77Bows \u2022 shields \u2022 armor \u2022 elytra/cPvP",
+                        "\u00a77Follow/guard \u2022 trades \u2022 quests \u2022 emotes",
+                        "\u00a77Voice \u2022 schedules \u2022 boss bars \u2022 more.")
+                .build());
+
         player.openInventory(inv);
+    }
+
+    static final Material[] WEAPON_PRESETS = {
+            null, Material.WOODEN_SWORD, Material.STONE_SWORD, Material.IRON_SWORD,
+            Material.DIAMOND_SWORD, Material.NETHERITE_SWORD, Material.MACE,
+            Material.TRIDENT, Material.BOW, Material.CROSSBOW, Material.SHIELD
+    };
+
+    private ItemStack heldItem(NPCData npc) {
+        Material m = npc.getMainHand() == null ? null : Material.matchMaterial(npc.getMainHand());
+        Material icon = (m == null) ? Material.BARRIER : m;
+        return new ItemBuilder(icon)
+                .name("\u00a7b\u00a7lHeld Item: \u00a7f" + (m == null ? "(fist/none)" : m.name()))
+                .lore("\u00a77Left-click: cycle weapon presets",
+                        "\u00a77Right-click: clear (empty hand)",
+                        "\u00a77Command: \u00a7e/sb hold " + me.sailex.secondbrain.util.Text.stripColors(npc.getName()) + " <mat|none>",
+                        "",
+                        "\u00a77Damage auto-scales with Sharpness enchants.")
+                .build();
     }
 
     // ============================================================
@@ -484,23 +551,44 @@ public class GUIManager {
     }
 
     private void border(Inventory inv, int size) {
-        ItemStack glass = new ItemBuilder(plugin.getConfigManager().getGuiFiller()).name("\u00a7r").build();
+        Material[] gradient = gradientGlass(size);
         for (int i = 0; i < size; i++) {
-            if (i < 9 || i >= size - 9 || i % 9 == 0 || i % 9 == 8) inv.setItem(i, glass);
+            if (i < 9 || i >= size - 9 || i % 9 == 0 || i % 9 == 8) {
+                inv.setItem(i, new ItemBuilder(gradient[i % gradient.length]).name("\u00a7r").build());
+            }
         }
     }
 
     private void fillRow(Inventory inv, int row) {
-        ItemStack glass = new ItemBuilder(plugin.getConfigManager().getGuiFiller()).name("\u00a7r").build();
-        for (int i = row * 9; i < row * 9 + 9; i++) inv.setItem(i, glass);
+        Material[] grad = gradientGlass(9);
+        for (int i = 0; i < 9; i++) {
+            inv.setItem(row * 9 + i, new ItemBuilder(grad[i]).name("\u00a7r").build());
+        }
     }
 
     private void fillSides(Inventory inv, int fromRow, int toRow) {
-        ItemStack glass = new ItemBuilder(plugin.getConfigManager().getGuiFiller()).name("\u00a7r").build();
         for (int row = fromRow; row <= toRow; row++) {
-            inv.setItem(row * 9, glass);
-            inv.setItem(row * 9 + 8, glass);
+            inv.setItem(row * 9,     new ItemBuilder(Material.CYAN_STAINED_GLASS_PANE).name("\u00a7r").build());
+            inv.setItem(row * 9 + 8, new ItemBuilder(Material.MAGENTA_STAINED_GLASS_PANE).name("\u00a7r").build());
         }
+    }
+
+    /** Fancy pink→cyan gradient for glass panes. */
+    private Material[] gradientGlass(int length) {
+        Material[] palette = {
+                Material.MAGENTA_STAINED_GLASS_PANE,
+                Material.PINK_STAINED_GLASS_PANE,
+                Material.PURPLE_STAINED_GLASS_PANE,
+                Material.LIGHT_BLUE_STAINED_GLASS_PANE,
+                Material.CYAN_STAINED_GLASS_PANE,
+                Material.LIGHT_BLUE_STAINED_GLASS_PANE,
+                Material.PURPLE_STAINED_GLASS_PANE,
+                Material.PINK_STAINED_GLASS_PANE,
+                Material.MAGENTA_STAINED_GLASS_PANE,
+        };
+        Material[] out = new Material[length];
+        for (int i = 0; i < length; i++) out[i] = palette[i % palette.length];
+        return out;
     }
 
     private ItemStack toggleItem(Material icon, String label, boolean on, boolean inherited) {
@@ -537,4 +625,66 @@ public class GUIManager {
     }
 
     private String onOff(boolean b) { return b ? "\u00a7aon" : "\u00a7coff"; }
+
+    // ============================================================
+    //  Shared action handlers (used by both commands & GUI)
+    // ============================================================
+
+    public void applyRename(Player player, NPCData npc, String newName) {
+        var cm = plugin.getConfigManager();
+        var nm = plugin.getNpcManager();
+        String trimmed = newName == null ? "" : newName.trim();
+        if (trimmed.isEmpty()) {
+            player.sendMessage(cm.msgRaw("prefix") + "\u00a7cName can't be empty.");
+            openEditor(player, npc);
+            return;
+        }
+        if (!Text.validNpcName(trimmed)) {
+            player.sendMessage(cm.msgRaw("prefix") + "\u00a7cNames: 1-16 chars (letters/numbers/underscores/spaces; & colors allowed).");
+            openEditor(player, npc);
+            return;
+        }
+        String oldName = npc.getName();
+        if (nm.rename(oldName, trimmed)) {
+            plugin.getChatService().clearMemory(npc.getId());
+            player.sendMessage(cm.msg("renamed", "old", oldName, "new", trimmed));
+            NPCData updated = nm.findByName(trimmed);
+            openEditor(player, updated != null ? updated : npc);
+        } else {
+            player.sendMessage(cm.msg("already-exists", "name", trimmed));
+            openEditor(player, npc);
+        }
+    }
+
+    public void applySkin(Player player, NPCData npc, String skinName) {
+        var cm = plugin.getConfigManager();
+        var nm = plugin.getNpcManager();
+        String name = skinName == null ? "" : skinName.trim();
+        if (name.isEmpty()) {
+            npc.setSkinName(null);
+            nm.applySkin(npc);
+            nm.saveAll();
+            player.sendMessage(cm.msgRaw("prefix") + "\u00a7aSkin removed from \u00a7e" + npc.getName() + "\u00a7a.");
+            openEditor(player, npc);
+            return;
+        }
+        if (!me.sailex.secondbrain.skin.SkinManager.validName(name)) {
+            player.sendMessage(cm.msgRaw("prefix") + "\u00a7cInvalid player name: \u00a7e" + name);
+            openEditor(player, npc);
+            return;
+        }
+        npc.setSkinName(name);
+        nm.applySkin(npc);
+        nm.saveAll();
+        player.sendMessage(cm.msgRaw("prefix") + "\u00a7aFetching skin \u00a7e" + name + "\u00a7a for \u00a7e" + npc.getName() + "\u00a7a...");
+        plugin.getSkinManager().getSkull(name, () -> Bukkit.getScheduler().runTask(plugin, () -> {
+            nm.applySkin(npc);
+            if (player.isOnline()) openEditor(player, npc);
+        }));
+        openEditor(player, npc);
+    }
+
+    private static String plainTitle(net.kyori.adventure.text.Component c) {
+        return c == null ? "" : PlainTextComponentSerializer.plainText().serialize(c);
+    }
 }

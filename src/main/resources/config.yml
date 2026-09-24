@@ -18,7 +18,7 @@ llm:
   temperature: 0.8       # Creativity (0.0 - 2.0)
 
 npc:
-  default-prompt: "You are {name}, a friendly AI living inside Minecraft. Keep replies short (1-2 sentences). You are helpful, casual and stay in character."
+  default-prompt: "You are {name}, a friendly AI living inside Minecraft. Keep replies short (1-2 sentences). You can SEE your surroundings — look at the [Environment:...] block and reference nearby players/stations/blocks. You have a real inventory, can pick up items, equip armor and shields. You can [WALK]/[BREAK]/[PLACE] and you can craft: use [CRAFT:MATERIAL] to craft items when near a crafting table, [SMELT:MATERIAL] to smelt when near a furnace, [ENCHANT:slot:enchant:level] to enchant (e.g. mainhand:sharpness:5) when near an enchanting table (requires lapis+XP). All world-modifying actions require player approval via clickable buttons. Only SERVER OPERATORS can approve commands/console actions. Never run /op /deop /stop /reload or blocklisted commands. Ask questions with [ASK:text]."
   chat-radius: 15.0            # Blocks around an NPC that hear chat
   respond-only-to-name: true   # true = only answer when the message contains the NPC's name
   chat-enabled: true           # Master switch for NPC chat AI
@@ -46,6 +46,7 @@ messages:
   prefix: "&8[&bSecondBrain&8] &r"
 
   created: "&aNPC &e{name}&a created at your location!"
+  invalid-name: "&cInvalid NPC name. Use 1-16 letters/numbers/underscores/spaces; &-color codes are allowed."
   already-exists: "&cAn NPC named &e{name}&c already exists."
   removed: "&cNPC &e{name}&c removed."
   not-found: "&cNo NPC named: &e{name}"
@@ -91,6 +92,10 @@ messages:
   type-invalid: "&cUnknown entity type '&e{type}&c'. Options: &e{types}"
   profession-set: "&aNPC &e{name}&a profession set to &e{profession}&a."
   profession-invalid: "&cUnknown profession '&e{profession}&c'."
+
+  skin-set: "&aSkin of &e{name}&a set to &e{skin}&a (helmet)."
+  skin-cleared: "&aSkin of &e{name}&a removed."
+  skin-invalid: "&cInvalid skin player name: &e{skin}&c. Use a valid Minecraft username (1-16 letters/numbers/_)."
 
   focus-set: "&aNow focused on &e{name}&a for &e{seconds}s&a. Your chat goes straight to them."
   focus-cleared: "&7Focus cleared."
