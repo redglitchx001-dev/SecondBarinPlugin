@@ -150,7 +150,9 @@ public class ChatService {
                 + "\n- [CMD:/command] run a command (only when OP talks to you, only if you have permission)"
                 + "\nUse these only when relevant. For normal chat just reply with plain text.";
 
-        plugin.getLlmClient().chat(systemPrompt, player.getName(), effectiveMsg, snapshot)
+        // We prepend sight data to the message; LLMClient will add "<playerName>: " prefix,
+        // so pass sight prefix in the message too.
+        plugin.getLlmClient().chat(systemPrompt, player.getName(), sightPrefix + msg, snapshot)
                 .thenAccept(result -> Bukkit.getScheduler().runTask(plugin, () -> {
                     npc.setThinking(false);
                     clearActionBar(npc);

@@ -14,11 +14,12 @@ import org.bukkit.block.Block;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Mob;
 import org.bukkit.entity.Player;
-import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.scheduler.BukkitTask;
 
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -135,17 +136,19 @@ public class NPCActions {
         mob.setAI(true);
         boolean ok = mob.getPathfinder().moveTo(loc, 1.0);
         if (!ok) return;
-        Bukkit.getScheduler().runTaskTimer(plugin, new org.bukkit.scheduler.BukkitRunnable() {
-            int ticks = 0;
-            @Override public void run() {
-                ticks++;
-                if (mob.isDead() || !mob.isValid() || mob.getLocation().getWorld() == null
-                        || !loc.getWorld().equals(mob.getWorld())) { cancel(); return; }
-                if (mob.getLocation().distanceSquared(loc) < 2.5 || ticks > 200) {
-                    mob.getPathfinder().stopPathfinding();
-                    if (!npc.isHostile()) mob.setAI(false);
-                    cancel();
-                }
+        AtomicInteger ticks = new AtomicInteger();
+        BukkitTask[] task = new BukkitTask[1];
+        task[0] = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+            int t = ticks.incrementAndGet();
+            if (mob.isDead() || !mob.isValid() || mob.getLocation().getWorld() == null
+                    || !loc.getWorld().equals(mob.getWorld())) {
+                if (task[0] != null) task[0].cancel();
+                return;
+            }
+            if (mob.getLocation().distanceSquared(loc) < 2.5 || t > 200) {
+                mob.getPathfinder().stopPathfinding();
+                if (!npc.isHostile()) mob.setAI(false);
+                if (task[0] != null) task[0].cancel();
             }
         }, 10L, 10L);
     }

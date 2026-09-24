@@ -23,11 +23,17 @@
     </repositories>
 
     <dependencies>
-        <!-- ONLY the Paper API. Zero runtime dependencies by design. -->
+        <!-- ONLY the Paper API + Gson (bundled with Paper but declared for compilation). Zero runtime deps. -->
         <dependency>
             <groupId>io.papermc.paper</groupId>
             <artifactId>paper-api</artifactId>
             <version>1.21-R0.1-SNAPSHOT</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.google.code.gson</groupId>
+            <artifactId>gson</artifactId>
+            <version>2.11.0</version>
             <scope>provided</scope>
         </dependency>
     </dependencies>
