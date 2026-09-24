@@ -34,7 +34,7 @@ public class SecondBrainCommand implements CommandExecutor, TabCompleter {
     private static final List<String> SUBCOMMANDS = List.of(
             "help", "gui", "create", "clone", "remove", "removeall", "rename", "list", "info", "near",
             "tp", "move", "tphere", "setprompt", "prompt", "setradius", "settype", "setprofession",
-            "setskin", "clearskin", "hold", "op", "deop",
+            "setskin", "clearskin", "hold", "inv", "inventory", "op", "deop",
             "set", "toggle", "clearmemory", "focus", "unfocus", "test",
             "setkey", "seturl", "setmodel", "status", "stats", "save", "reload", "version", "more"
     );
@@ -42,7 +42,7 @@ public class SecondBrainCommand implements CommandExecutor, TabCompleter {
     private static final List<String> GLOBAL_TOGGLES = List.of(
             "chat", "nameonly", "look", "nametags", "glow", "typing", "debug");
     private static final List<String> NPC_TOGGLES = List.of(
-            "chat", "nameonly", "look", "nametag", "glow", "baby", "commands", "hostile");
+            "chat", "nameonly", "look", "nametag", "glow", "baby", "commands", "hostile", "pickup");
     private static final List<String> ON_OFF = List.of("on", "off");
     private static final List<String> ON_OFF_DEFAULT = List.of("on", "off", "default");
 
@@ -202,6 +202,8 @@ public class SecondBrainCommand implements CommandExecutor, TabCompleter {
                 s.sendMessage("\u00a77Can run commands: " + onOff(npc.canExecuteCommands()) + inherit(npc.getCanExecuteCommandsRaw())
                         + (npc.isConsoleExecutor() ? " \u00a7c\u00a7l[CONSOLE/OP]\u00a77" : ""));
                 s.sendMessage("\u00a77Hostile (PvP): " + onOff(npc.isHostile()) + inherit(npc.getHostileRaw()));
+                s.sendMessage("\u00a77Picks up items: " + onOff(npc.canPickupItems()) + inherit(npc.getCanPickupItemsRaw()));
+                s.sendMessage("\u00a77XP levels: \u00a7f" + (npc.hasInventory() ? npc.getInventory().getXpLevels() : 0));
                 s.sendMessage("\u00a77Holds: \u00a7f" + (npc.getMainHand() == null ? "(nothing)" : npc.getMainHand()));
                 s.sendMessage("\u00a77Radius: \u00a7f" + Text.num(nm.getChatRadius(npc)) + inherit(npc.getChatRadiusRaw()));
                 s.sendMessage("\u00a77Replies served: \u00a7f" + npc.getRepliesServed());
@@ -378,6 +380,13 @@ public class SecondBrainCommand implements CommandExecutor, TabCompleter {
                 nm.saveAll();
                 s.sendMessage(cm.msgRaw("prefix") + "\u00a7e" + npc.getName() + " \u00a7anow holds: \u00a7f" + (npc.getMainHand() == null ? "(nothing)" : npc.getMainHand()));
             }
+            case "inv", "inventory" -> {
+                if (!perm(s, "secondbrain.admin")) return true;
+                if (!(s instanceof Player p)) { s.sendMessage("\u00a7cOnly players can open inventories."); return true; }
+                if (args.length < 2) { usage(s, "/sb inv <name>"); return true; }
+                NPCData npc = npcArg(s, args[1]); if (npc == null) return true;
+                npc.getInventory().openTo(p);
+            }
             case "op" -> {
                 if (!perm(s, "secondbrain.admin")) return true;
                 if (args.length < 2) { usage(s, "/sb op <name>"); return true; }
@@ -448,6 +457,7 @@ public class SecondBrainCommand implements CommandExecutor, TabCompleter {
                     case "baby" -> npc.setBaby(val);
                     case "commands" -> npc.setCanExecuteCommands(val);
                     case "hostile" -> { npc.setHostile(val); needsRespawn = true; }
+                    case "pickup" -> npc.setCanPickupItems(val);
                     default -> {}
                 }
                 nm.saveAll();
@@ -611,6 +621,7 @@ public class SecondBrainCommand implements CommandExecutor, TabCompleter {
             lines.add("\u00a7e/sb set <name> <setting> <on|off|default>");
             lines.add("\u00a7e/sb setradius <name> <blocks> \u00a78| /sb settype \u00a78| /sb setprofession");
             lines.add("\u00a7e/sb setskin <name> <player> \u00a78| /sb clearskin <name> \u00a78| /sb hold <name> <mat|none>");
+            lines.add("\u00a7e/sb inv <name> \u00a78- open NPC's full inventory (armor, 2x2 craft, furnace)");
             lines.add("\u00a7e/sb toggle <" + String.join("|", GLOBAL_TOGGLES) + "> \u00a78[on|off]");
             lines.add("\u00a7e/sb clearmemory <name|all> \u00a78| /sb test <name> <msg>");
             lines.add("\u00a7e/sb setkey <key> \u00a78| /sb seturl <url> \u00a78| /sb setmodel <model>");
@@ -660,7 +671,7 @@ public class SecondBrainCommand implements CommandExecutor, TabCompleter {
                 case "clearmemory" -> filter(npcNamesPlus("all"), args[1]);
                 case "remove", "rename", "info", "tp", "move", "tphere", "clone",
                      "setprompt", "prompt", "setradius", "settype", "setprofession",
-                     "setskin", "clearskin", "hold", "op", "deop", "set", "test", "focus" -> filter(npcNames(), args[1]);
+                     "setskin", "clearskin", "hold", "inv", "inventory", "op", "deop", "set", "test", "focus" -> filter(npcNames(), args[1]);
                 default -> List.of();
             };
         }

@@ -19,6 +19,7 @@ import org.bukkit.entity.Villager;
 import org.bukkit.inventory.EntityEquipment;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.Vector;
+import me.sailex.secondbrain.npc.NPCInventory;
 
 import java.io.File;
 import java.io.IOException;
@@ -302,21 +303,35 @@ public class NPCManager {
         if (e instanceof ArmorStand as) as.setGravity(true);
     }
 
-    /** Equips the NPC's main-hand item from data.getMainHand() (Material name, e.g. DIAMOND_SWORD). */
+    /** Equips armor + main-hand + offhand from the NPC's inventory (data.mainHand overrides main hand). */
     public void applyEquipment(NPCData data) {
         if (data.getEntityUuid() == null) return;
         Entity e = Bukkit.getEntity(data.getEntityUuid());
         if (!(e instanceof LivingEntity living)) return;
         EntityEquipment eq = living.getEquipment();
         if (eq == null) return;
+
         eq.setItemInMainHandDropChance(0f);
-        if (data.getMainHand() == null || data.getMainHand().isBlank()) {
-            eq.setItemInMainHand(null);
-            return;
+        eq.setHelmetDropChance(0f); eq.setChestplateDropChance(0f);
+        eq.setLeggingsDropChance(0f); eq.setBootsDropChance(0f);
+        eq.setItemInOffHandDropChance(0f);
+
+        NPCInventory inv = data.hasInventory() ? data.getInventory() : null;
+        ItemStack mainHand = null, boots = null, leggings = null, chest = null, helmet = null, off = null;
+        if (inv != null) {
+            mainHand = inv.getMainHand();
+            ItemStack[] a = inv.getArmor();
+            boots = a[0]; leggings = a[1]; chest = a[2]; helmet = a[3];
+            off = inv.getOffhand();
         }
-        Material m = Material.matchMaterial(data.getMainHand().toUpperCase(Locale.ROOT));
-        if (m == null) { eq.setItemInMainHand(null); return; }
-        eq.setItemInMainHand(new ItemStack(m));
+        if (data.getMainHand() != null && !data.getMainHand().isBlank()) {
+            Material m = Material.matchMaterial(data.getMainHand().toUpperCase(Locale.ROOT));
+            if (m != null) mainHand = new ItemStack(m);
+        }
+
+        eq.setItemInMainHand(mainHand);
+        eq.setBoots(boots); eq.setLeggings(leggings); eq.setChestplate(chest); eq.setHelmet(helmet);
+        eq.setItemInOffHand(off);
     }
 
     /** Equips the NPC's helmet slot with the skin-skull if configured. */
@@ -407,7 +422,12 @@ public class NPCManager {
                 data.setConsoleExecutor(dataConfig.getBoolean(path + "settings.console-executor"));
             if (dataConfig.contains(path + "settings.hostile"))
                 data.setHostile(dataConfig.getBoolean(path + "settings.hostile"));
+            if (dataConfig.contains(path + "settings.pickup-items"))
+                data.setCanPickupItems(dataConfig.getBoolean(path + "settings.pickup-items"));
             data.setMainHand(dataConfig.getString(path + "settings.main-hand"));
+            if (dataConfig.contains(path + "settings.inventory")) {
+                data.getInventory().load(dataConfig.getConfigurationSection(path + "settings.inventory"));
+            }
 
             npcs.put(plainKey(name), data);
             spawnEntity(data);
@@ -436,7 +456,15 @@ public class NPCManager {
             setOrNull(s + "commands", data.getCanExecuteCommandsRaw());
             setOrNull(s + "console-executor", data.getConsoleExecutorRaw());
             setOrNull(s + "hostile", data.getHostileRaw());
+            setOrNull(s + "pickup-items", data.getCanPickupItemsRaw());
             dataConfig.set(s + "main-hand", data.getMainHand());
+            // Inventory (stored as a single base64 blob for now; only if touched).
+            String invPath = s + "inventory";
+            if (data.hasInventory()) {
+                data.getInventory().save(dataConfig.createSection(invPath));
+            } else {
+                dataConfig.set(invPath, null);
+            }
         }
         persist();
     }

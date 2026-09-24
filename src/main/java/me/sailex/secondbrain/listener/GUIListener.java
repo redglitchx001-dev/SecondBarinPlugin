@@ -19,7 +19,9 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.BookMeta;
 
@@ -44,6 +46,21 @@ public class GUIListener implements Listener {
     @EventHandler
     public void onClick(InventoryClickEvent e) {
         if (!(e.getWhoClicked() instanceof Player p)) return;
+
+        // NPC inventory view (full player-size inv with crafting): let clicks pass through.
+        InventoryHolder holder = e.getView().getTopInventory().getHolder();
+        if (holder instanceof me.sailex.secondbrain.npc.NPCInventory npcInv) {
+            // Only intercept clicks on the result slot (45) to consume ingredients.
+            if (e.getClickedInventory() == e.getView().getTopInventory() && e.getSlot() == 45) {
+                ItemStack res = npcInv.getInventory().getItem(45);
+                if (res != null && e.getClick() == ClickType.LEFT) {
+                    // Give the player the crafted item (or let normal click move it) and consume ingredients.
+                    npcInv.takeCraftResult();
+                }
+            }
+            return;
+        }
+
         String title = plain(e.getView().title());
         if (!isOurs(title)) return;
 
@@ -290,18 +307,28 @@ public class GUIListener implements Listener {
                 p.sendMessage(cm.msg("moved", "name", npc.getName()));
                 gm.openEditor(p, npc);
             }
-            case 40 -> { // "what more" info book
-                showMoreBook(p);
+            case 40 -> { // chest - open NPC inventory
+                npc.getInventory().openTo(p);
                 return;
             }
-            case 41 -> gm.confirm(p, "Clear memory of " + npc.getName() + "?",
+            case 42 -> gm.confirm(p, "Clear memory of " + npc.getName() + "?",
                     () -> {
                         plugin.getChatService().clearMemory(npc.getId());
                         p.sendMessage(cm.msg("memory-cleared", "name", npc.getName()));
                         gm.openEditor(p, npc);
                     },
                     () -> gm.openEditor(p, npc));
-            case 42 -> { // clone
+            case 44 -> gm.confirm(p, "Delete NPC " + npc.getName() + "?",
+                    () -> {
+                        npc.getInventory().dropAll(npc.getLocation());
+                        if (nm.removeByName(npc.getName())) {
+                            plugin.getChatService().clearMemory(npc.getId());
+                            p.sendMessage(cm.msg("removed", "name", npc.getName()));
+                        }
+                        gm.openNPCList(p);
+                    },
+                    () -> gm.openEditor(p, npc));
+            case 48 -> { // clone
                 String base = me.sailex.secondbrain.util.Text.stripColors(npc.getName());
                 String copy = base;
                 int i = 2;
@@ -315,16 +342,8 @@ public class GUIListener implements Listener {
                 gm.openEditor(p, clone);
                 return;
             }
-            case 43 -> gm.confirm(p, "Delete NPC " + npc.getName() + "?",
-                    () -> {
-                        if (nm.removeByName(npc.getName())) {
-                            plugin.getChatService().clearMemory(npc.getId());
-                            p.sendMessage(cm.msg("removed", "name", npc.getName()));
-                        }
-                        gm.openNPCList(p);
-                    },
-                    () -> gm.openEditor(p, npc));
-            case 45 -> gm.openNPCList(p);
+            case 49 -> gm.openNPCList(p);
+            case 50 -> { showMoreBook(p); return; }
             default -> {}
         }
     }
@@ -527,5 +546,17 @@ public class GUIListener implements Listener {
         }
         p.closeInventory();
         p.openBook(book);
+    }
+
+    @EventHandler
+    public void onClose(InventoryCloseEvent e) {
+        if (!(e.getPlayer() instanceof Player p)) return;
+        InventoryHolder holder = e.getInventory().getHolder();
+        if (holder instanceof me.sailex.secondbrain.npc.NPCInventory inv) {
+            inv.syncFromView();
+            inv.getNpc().getInventory().updateCrafting();
+            plugin.getNpcManager().applyEquipment(inv.getNpc());
+            plugin.getNpcManager().saveAll();
+        }
     }
 }

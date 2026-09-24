@@ -33,7 +33,9 @@ public class NPCData {
     private Boolean canExecuteCommands;// true = this NPC can run commands (only when talker is OP)
     private Boolean consoleExecutor;   // true = trusted OP-NPC: commands dispatch as console (bypasses protections)
     private Boolean hostile;           // true = attacks nearby players in combat range
-    private String mainHand;           // Bukkit Material name for held item, null = nothing (e.g. DIAMOND_SWORD, MACE)
+    private String mainHand;          // Bukkit Material name for held item, null = nothing (e.g. DIAMOND_SWORD, MACE)
+    private Boolean canPickupItems;   // true = attracts and picks up nearby dropped items (default true)
+    private NPCInventory inventory;   // full player-like inv: 36+armor+offhand+craft+furnace
 
     // ---- runtime counters ----
     private final AtomicLong repliesServed = new AtomicLong();
@@ -97,6 +99,17 @@ public class NPCData {
 
     public String getMainHand() { return mainHand; }
     public void setMainHand(String mainHand) { this.mainHand = mainHand; }
+
+    /** Full player-like inventory (lazy; instantiated on first access). */
+    public NPCInventory getInventory() {
+        if (inventory == null) inventory = new NPCInventory(this);
+        return inventory;
+    }
+    public boolean hasInventory() { return inventory != null; }
+
+    public Boolean getCanPickupItemsRaw() { return canPickupItems; }
+    public void setCanPickupItems(Boolean v) { this.canPickupItems = v; }
+    public boolean canPickupItems() { return canPickupItems == null || canPickupItems; }
 
     // ---- runtime ----
     public long incrementReplies() { return repliesServed.incrementAndGet(); }

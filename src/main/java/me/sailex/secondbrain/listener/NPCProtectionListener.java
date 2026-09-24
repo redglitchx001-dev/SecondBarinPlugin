@@ -12,9 +12,13 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.*;
+import org.bukkit.entity.Item;
 import org.bukkit.event.world.ChunkLoadEvent;
 import org.bukkit.event.world.EntitiesLoadEvent;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.util.Vector;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -170,17 +174,53 @@ public class NPCProtectionListener implements Listener {
                     }
                 }
 
+                boolean hostileOrWalking = data.isHostile(); // hostile keeps AI on via NPCCombat
                 if (e instanceof LivingEntity le) {
-                    if (le.hasAI()) le.setAI(false);
+                    if (le.hasAI() && !hostileOrWalking) le.setAI(false);
                     if (!le.isSilent()) le.setSilent(true);
-                    if (le.isCollidable()) le.setCollidable(false);
-                    // Periodically re-apply skin helmet in case something knocked it off.
+                    if (le.isCollidable() && le instanceof org.bukkit.entity.Mob m) m.setCollidable(false);
+                    nm.applyEquipment(data);
                     nm.applySkin(data);
+
+                    // Furnace tick: if NPC is near a furnace, simulate smelting.
+                    boolean nearFurnace = false;
+                    for (int dx = -2; dx <= 2 && !nearFurnace; dx++)
+                        for (int dy = -2; dy <= 2 && !nearFurnace; dy++)
+                            for (int dz = -2; dz <= 2 && !nearFurnace; dz++) {
+                                org.bukkit.block.Block b = cur.clone().add(dx, dy, dz).getBlock();
+                                if (b.getType() == org.bukkit.Material.FURNACE
+                                        || b.getType() == org.bukkit.Material.BLAST_FURNACE
+                                        || b.getType() == org.bukkit.Material.SMOKER) nearFurnace = true;
+                            }
+                    data.getInventory().tickFurnace(plugin, nearFurnace);
                 }
                 if (!e.isInvulnerable()) e.setInvulnerable(true);
                 if (!e.isPersistent()) e.setPersistent(true);
+
+                // Item pickup: attract and pick up nearby drops when enabled.
+                if (data.canPickupItems() && !data.isHostile()) {
+                    double pickRange = 2.0;
+                    List<Entity> nearby = cur.getWorld().getNearbyEntities(cur, pickRange, pickRange, pickRange,
+                            ent -> ent instanceof Item && ent.isValid() && !ent.isDead());
+                    for (Entity ent : nearby) {
+                        Item item = (Item) ent;
+                        ItemStack rem = data.getInventory().addItem(item.getItemStack());
+                        if (rem == null) {
+                            item.remove();
+                            nm.applyEquipment(data);
+                        } else {
+                            item.setItemStack(rem);
+                        }
+                    }
+                    // Magnet effect on items further out (up to 4 blocks)
+                    for (Entity ent : cur.getWorld().getNearbyEntities(cur, 4, 2, 4,
+                            ent -> ent instanceof Item && ent.isValid() && !ent.isDead())) {
+                        Vector v = cur.toVector().add(new Vector(0, 0.8, 0)).subtract(ent.getLocation().toVector());
+                        if (v.lengthSquared() > 0.001) ent.setVelocity(v.normalize().multiply(0.25));
+                    }
+                }
             }
-        }, 20L, 20L);
+        }, 20L, 10L);
     }
 
     // ------------------------------------------------------------

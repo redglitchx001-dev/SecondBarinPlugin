@@ -321,28 +321,37 @@ public class GUIManager {
                 .name("\u00a79\u00a7lMove NPC Here")
                 .lore("\u00a77Teleports the NPC to your position.")
                 .build());
-        inv.setItem(40, new ItemBuilder(Material.KNOWLEDGE_BOOK)
+        inv.setItem(40, new ItemBuilder(Material.CHEST)
+                .name("\u00a76\u00a7lNPC Inventory")
+                .lore("\u00a77Full player-size inventory (36 slots).",
+                        "\u00a77Includes armor, offhand, 2x2 crafting grid,",
+                        "\u00a77and furnace slots.",
+                        "",
+                        "\u00a77Command: \u00a7e/sb inv " + me.sailex.secondbrain.util.Text.stripColors(npc.getName()))
+                .build());
+        inv.setItem(42, new ItemBuilder(Material.MAGMA_CREAM)
+                .name("\u00a7c\u00a7lClear Memory")
+                .lore("\u00a77Forgets every conversation so far.")
+                .build());
+        inv.setItem(44, new ItemBuilder(Material.BARRIER)
+                .name("\u00a74\u00a7lDelete NPC")
+                .lore("\u00a77Removes the entity and data.")
+                .build());
+
+        // Bottom row has no side panes - move back arrow.
+        inv.setItem(49, new ItemBuilder(Material.ARROW).name("\u00a7c\u00a7lBack").build());
+        inv.setItem(48, new ItemBuilder(Material.ARMOR_STAND)
+                .name("\u00a7b\u00a7lClone NPC")
+                .lore("\u00a77Spawns a copy with a ' (2)' suffix,",
+                        "\u00a77same settings/prompt/location.")
+                .build());
+        inv.setItem(50, new ItemBuilder(Material.KNOWLEDGE_BOOK)
                 .name("\u00a7d\u00a7lWhat More Can We Add?")
                 .lore("\u00a77Click to see the roadmap.",
                         "\u00a77Bows \u2022 shields \u2022 armor \u2022 elytra/cPvP",
                         "\u00a77Follow/guard \u2022 trades \u2022 quests \u2022 emotes",
                         "\u00a77Voice \u2022 schedules \u2022 boss bars \u2022 more.")
                 .build());
-        inv.setItem(41, new ItemBuilder(Material.MAGMA_CREAM)
-                .name("\u00a7c\u00a7lClear Memory")
-                .lore("\u00a77Forgets every conversation so far.")
-                .build());
-        inv.setItem(42, new ItemBuilder(Material.ARMOR_STAND)
-                .name("\u00a7b\u00a7lClone NPC")
-                .lore("\u00a77Spawns a copy with a ' (2)' suffix,",
-                        "\u00a77same settings/prompt/location.")
-                .build());
-        inv.setItem(43, new ItemBuilder(Material.BARRIER)
-                .name("\u00a74\u00a7lDelete NPC")
-                .lore("\u00a77Removes the entity and data.")
-                .build());
-
-        inv.setItem(45, new ItemBuilder(Material.ARROW).name("\u00a7c\u00a7lBack").build());
 
         player.openInventory(inv);
     }

@@ -74,12 +74,44 @@ public final class Sight {
         }
         if (!blocksSeen.isEmpty()) sb.append("Looking at: ").append(String.join(", ", blocksSeen)).append(". ");
 
+        // Nearby interactive blocks within 4 blocks (so NPC knows about tables/furnaces).
+        List<String> stations = new ArrayList<>();
+        for (int dx = -4; dx <= 4; dx++)
+            for (int dy = -2; dy <= 2; dy++)
+                for (int dz = -4; dz <= 4; dz++) {
+                    Material m = loc.clone().add(dx, dy, dz).getBlock().getType();
+                    String label = stationLabel(m);
+                    if (label != null && !stations.contains(label)) stations.add(label);
+                }
+        if (!stations.isEmpty()) sb.append("Nearby stations: ").append(String.join(", ", stations)).append(". ");
+
         // Mention time/weather briefly
         boolean storm = loc.getWorld().hasStorm();
         boolean night = loc.getWorld().getTime() > 13000 && loc.getWorld().getTime() < 23000;
         sb.append("It is ").append(night ? "night" : "day");
         if (storm) sb.append(" and raining");
         sb.append(".");
+        return sb.toString();
+    }
+
+    private static String stationLabel(Material m) {
+        return switch (m) {
+            case CRAFTING_TABLE -> "crafting table";
+            case FURNACE, BLAST_FURNACE, SMOKER -> "furnace";
+            case ENCHANTING_TABLE -> "enchanting table";
+            case ANVIL, CHIPPED_ANVIL, DAMAGED_ANVIL -> "anvil";
+            case CHEST, BARREL -> "chest";
+            case BREWING_STAND -> "brewing stand";
+            case SMITHING_TABLE -> "smithing table";
+            case GRINDSTONE -> "grindstone";
+            case STONECUTTER -> "stonecutter";
+            case LECTERN -> "lectern";
+            case LOOM -> "loom";
+            case CARTOGRAPHY_TABLE -> "cartography table";
+            case FLETCHING_TABLE -> "fletching table";
+            default -> null;
+        };
+    }
 
         return sb.toString();
     }
